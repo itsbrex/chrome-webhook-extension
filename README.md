@@ -57,6 +57,38 @@ This project isn't merely a functional tool; it's a personal statement and a bea
 - Chrome browser with Manifest V3 support
 - Developer mode enabled for unpacked extensions
 
+## Development
+
+### Building the Extension
+This project includes a Bun build script to package the extension files for distribution:
+
+1. Install [Bun](https://bun.sh/) if you haven't already:
+   ```bash
+   curl -fsSL https://bun.sh/install | bash
+   ```
+
+2. Build the extension:
+   ```bash
+   bun run build
+   ```
+
+This will create a `dist/` directory containing all the necessary extension files with the proper structure:
+```
+dist/
+├── background.js
+├── contentScripts/
+│   └── linkedinParser.js
+├── images/
+│   ├── icon128.png
+│   ├── icon16.png
+│   └── icon48.png
+├── manifest.json
+├── popup.html
+└── popup.js
+```
+
+You can then load the `dist/` directory as an unpacked extension in Chrome, or zip it for distribution.
+
 ## Usage
 
 ### Managing Webhooks
