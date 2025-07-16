@@ -495,7 +495,8 @@ async function waitForTabLoad(tabId) {
 }
 
 async function sendLinkedInDataToWebhooks(linkedinData) {
-  chrome.storage.local.get('webhooks', async function (data) {
+  try {
+    const data = await chrome.storage.local.get('webhooks');
     if (!data.webhooks || data.webhooks.length === 0) {
       showNotification('⚠️ LinkedIn Parser', 'No webhooks configured. Please add webhooks to receive LinkedIn data.', false);
       return;
