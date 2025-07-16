@@ -6,6 +6,9 @@
     "build": "bun run build.js"
   },
   "devDependencies": {
-    "bun": "^1.2.0"
+    "@biomejs/biome": "2.1.1",
+    "bun": "^1.2.0",
+    "husky": "^9.1.7",
+    "ultracite": "5.0.36"
   }
 }
