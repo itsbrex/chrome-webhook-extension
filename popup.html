@@ -568,6 +568,26 @@
             </div>
             
             <div class="form-group">
+              <label>
+                <input type="checkbox" id="linkedinAutoMutualConnections" style="margin-right: 8px;">
+                Auto-parse mutual connections when viewing profiles
+              </label>
+              <small style="color: var(--text-secondary); font-size: 12px; display: block; margin-top: 4px;">
+                Automatically parse all mutual connections when using "Send to Webhook" on LinkedIn profiles
+              </small>
+            </div>
+            
+            <div class="form-group">
+              <label>
+                <input type="checkbox" id="linkedinBidirectional" style="margin-right: 8px;">
+                Create bi-directional connection payloads
+              </label>
+              <small style="color: var(--text-secondary); font-size: 12px; display: block; margin-top: 4px;">
+                Send separate payloads for each mutual connection with bi-directional linking
+              </small>
+            </div>
+            
+            <div class="form-group">
               <label for="linkedinWebhooks">Send LinkedIn data to:</label>
               <select id="linkedinWebhooks" class="form-input">
                 <option value="none">Don't send LinkedIn data</option>

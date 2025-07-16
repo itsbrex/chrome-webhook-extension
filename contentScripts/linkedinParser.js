@@ -12,6 +12,7 @@ class LinkedInMutualConnectionsParser {
         scrollDelay: 100
       },
       selectors: {
+        // Search results page selectors
         mutualConnectionsLink: 'a[href*="facetConnectionOf"], a[href*="mutual"]',
         connectionName: 'span.entity-result__title-text a span[dir="ltr"], .entity-result__title-text a span',
         profileUrl: 'a.app-aware-link[href*="/in/"], a[href*="/in/"]',
@@ -23,7 +24,20 @@ class LinkedInMutualConnectionsParser {
         searchContainer: '.search-results-container, .search-results__list',
         resultItems: 'li.reusable-search__result-container, .entity-result, .search-result',
         paginationContainer: '.artdeco-pagination, .pagination',
-        nextPageButton: 'button[aria-label*="Next"], .artdeco-pagination__button--next'
+        nextPageButton: 'button[aria-label*="Next"], .artdeco-pagination__button--next',
+        
+        // Profile page selectors
+        profileName: 'h1.text-heading-xlarge, .text-heading-xlarge, .pv-text-details__title h1, .pv-top-card--list h1',
+        profileTitle: '.text-body-medium.break-words, .pv-text-details__title + div, .pv-top-card--list-bullet .text-body-medium',
+        profileLocation: '.text-body-small.inline.t-black--light.break-words, .pv-text-details__left-panel .geo-text',
+        profileImage: '.pv-top-card-profile-picture__image, .pv-member-photo-edit__image, img.pv-top-card-profile-picture__image--show',
+        aboutSection: '.pv-about-section .pv-about__summary-text, .pv-shared-text-with-see-more .inline-show-more-text',
+        experienceSection: '.pv-profile-section.experience-section, .pvs-list__container',
+        educationSection: '.pv-profile-section.education-section, .pvs-list__container',
+        skillsSection: '.pv-skill-categories-section, .pvs-list__container',
+        connectionsCount: '.pv-top-card--list-bullet .t-black--light span:contains("connection"), .pv-top-card--list-bullet a[href*="overlay/connections"]',
+        followersCount: '.pv-top-card--list-bullet .t-black--light span:contains("follower")',
+        mutualConnectionsText: '.pv-top-card--list-bullet a[href*="facetConnectionOf"], .pv-top-card--list-bullet a[href*="mutual"]'
       },
       maxPagesPerSession: 50,
       maxConnectionsPerPage: 10,
@@ -33,6 +47,192 @@ class LinkedInMutualConnectionsParser {
     this.antiDetection = new AntiDetectionManager();
     this.isProcessing = false;
     this.currentSession = null;
+  }
+
+  // Parse individual LinkedIn profile page
+  parseProfilePage() {
+    try {
+      console.log('Parsing LinkedIn profile page...');
+      
+      // Extract profile data using enhanced selectors
+      const profile = {
+        name: this.extractTextContent(this.config.selectors.profileName),
+        title: this.extractTextContent(this.config.selectors.profileTitle),
+        location: this.extractTextContent(this.config.selectors.profileLocation),
+        profileImageUrl: this.extractAttribute(this.config.selectors.profileImage, 'src'),
+        profileUrl: window.location.href,
+        about: this.extractTextContent(this.config.selectors.aboutSection),
+        extractedAt: new Date().toISOString()
+      };
+
+      // Extract connections information
+      const connectionsElement = document.querySelector(this.config.selectors.connectionsCount);
+      if (connectionsElement) {
+        const connectionsText = connectionsElement.textContent || '';
+        const connectionsMatch = connectionsText.match(/(\d+(?:,\d+)*)\s+connections?/i);
+        profile.connectionsCount = connectionsMatch ? connectionsMatch[1].replace(/,/g, '') : null;
+      }
+
+      // Extract followers information  
+      const followersElement = document.querySelector(this.config.selectors.followersCount);
+      if (followersElement) {
+        const followersText = followersElement.textContent || '';
+        const followersMatch = followersText.match(/(\d+(?:,\d+)*)\s+followers?/i);
+        profile.followersCount = followersMatch ? followersMatch[1].replace(/,/g, '') : null;
+      }
+
+      // Extract mutual connections information
+      const mutualConnectionsElement = document.querySelector(this.config.selectors.mutualConnectionsText);
+      if (mutualConnectionsElement) {
+        const mutualText = mutualConnectionsElement.textContent || '';
+        const mutualMatch = mutualText.match(/(\d+)\s+(?:other\s+)?mutual\s+connections?/i);
+        profile.mutualConnectionsCount = mutualMatch ? parseInt(mutualMatch[1]) : null;
+        profile.mutualConnectionsUrl = mutualConnectionsElement.href;
+      }
+
+      // Check for premium indicator
+      profile.isPremium = !!document.querySelector(this.config.selectors.premiumIndicator);
+
+      // Extract LinkedIn profile ID from URL
+      const urlMatch = profile.profileUrl.match(/\/in\/([^\/]+)/);
+      profile.linkedinId = urlMatch ? urlMatch[1] : null;
+
+      // Extract experience information
+      profile.experience = this.extractExperienceData();
+
+      // Extract education information
+      profile.education = this.extractEducationData();
+
+      // Extract skills information
+      profile.skills = this.extractSkillsData();
+
+      console.log('Profile parsing completed:', profile);
+      return profile;
+      
+    } catch (error) {
+      console.error('Error parsing LinkedIn profile page:', error);
+      return null;
+    }
+  }
+
+  // Helper method to extract text content with fallbacks
+  extractTextContent(selector) {
+    try {
+      const element = document.querySelector(selector);
+      return element ? (element.textContent || element.innerText || '').trim() : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // Helper method to extract attribute with fallbacks
+  extractAttribute(selector, attribute) {
+    try {
+      const element = document.querySelector(selector);
+      return element ? element.getAttribute(attribute) : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // Extract experience data from LinkedIn profile
+  extractExperienceData() {
+    try {
+      const experienceSection = document.querySelector(this.config.selectors.experienceSection);
+      if (!experienceSection) return [];
+
+      const experiences = [];
+      const experienceItems = experienceSection.querySelectorAll('li.artdeco-list__item, .pvs-list__paged-list-item, .pv-entity__position-group-pager li');
+      
+      for (const item of experienceItems) {
+        const experience = {
+          title: this.extractElementText(item, '.t-bold span[aria-hidden="true"], .mr1.t-bold span, .pv-entity__summary-info h3'),
+          company: this.extractElementText(item, '.t-14.t-normal span[aria-hidden="true"], .pv-entity__secondary-title, .t-14.t-normal a'),
+          duration: this.extractElementText(item, '.t-14.t-normal.t-black--light span[aria-hidden="true"], .pv-entity__bullet-item-v2, .t-14.t-normal.t-black--light'),
+          location: this.extractElementText(item, '.t-12.t-normal.t-black--light span[aria-hidden="true"], .pv-entity__location span:last-child'),
+          description: this.extractElementText(item, '.inline-show-more-text, .pv-entity__extra-details')
+        };
+
+        // Only add if we have at least a title
+        if (experience.title) {
+          experiences.push(experience);
+        }
+      }
+
+      return experiences;
+    } catch (error) {
+      console.warn('Error extracting experience data:', error);
+      return [];
+    }
+  }
+
+  // Extract education data from LinkedIn profile
+  extractEducationData() {
+    try {
+      const educationSection = document.querySelector(this.config.selectors.educationSection);
+      if (!educationSection) return [];
+
+      const educations = [];
+      const educationItems = educationSection.querySelectorAll('li.artdeco-list__item, .pvs-list__paged-list-item, .pv-education-entity');
+      
+      for (const item of educationItems) {
+        const education = {
+          school: this.extractElementText(item, '.t-bold span[aria-hidden="true"], .mr1.t-bold span, .pv-entity__school-name'),
+          degree: this.extractElementText(item, '.t-14.t-normal span[aria-hidden="true"], .pv-entity__degree-name .pv-entity__comma-item'),
+          fieldOfStudy: this.extractElementText(item, '.t-14.t-normal span[aria-hidden="true"]:nth-child(2), .pv-entity__fos .pv-entity__comma-item'),
+          duration: this.extractElementText(item, '.t-14.t-normal.t-black--light span[aria-hidden="true"], .pv-entity__dates .pv-entity__bullet-item'),
+          description: this.extractElementText(item, '.inline-show-more-text, .pv-entity__extra-details')
+        };
+
+        // Only add if we have at least a school name
+        if (education.school) {
+          educations.push(education);
+        }
+      }
+
+      return educations;
+    } catch (error) {
+      console.warn('Error extracting education data:', error);
+      return [];
+    }
+  }
+
+  // Extract skills data from LinkedIn profile
+  extractSkillsData() {
+    try {
+      const skillsSection = document.querySelector(this.config.selectors.skillsSection);
+      if (!skillsSection) return [];
+
+      const skills = [];
+      const skillItems = skillsSection.querySelectorAll('li.artdeco-list__item, .pvs-list__paged-list-item, .pv-skill-category-entity__skill-wrapper');
+      
+      for (const item of skillItems) {
+        const skill = {
+          name: this.extractElementText(item, '.t-bold span[aria-hidden="true"], .mr1.t-bold span, .pv-skill-category-entity__name a'),
+          endorsements: this.extractElementText(item, '.t-12.t-normal.t-black--light, .pv-skill-category-entity__endorsement-count')
+        };
+
+        // Only add if we have a skill name
+        if (skill.name) {
+          skills.push(skill);
+        }
+      }
+
+      return skills;
+    } catch (error) {
+      console.warn('Error extracting skills data:', error);
+      return [];
+    }
+  }
+
+  // Helper method to extract text from element within a parent container
+  extractElementText(parentElement, selector) {
+    try {
+      const element = parentElement.querySelector(selector);
+      return element ? (element.textContent || element.innerText || '').trim() : null;
+    } catch (error) {
+      return null;
+    }
   }
 
   // Detect if current page has mutual connections section
@@ -319,6 +519,63 @@ class LinkedInMutualConnectionsParser {
     };
   }
 
+  // Build bi-directional payloads for mutual connections
+  buildBidirectionalPayloads() {
+    const session = this.currentSession;
+    const sourceProfile = session.profileData;
+    const payloads = [];
+
+    // Create main payload with all mutual connections
+    const mainPayload = this.buildWebhookPayload();
+    payloads.push(mainPayload);
+
+    // Create individual payloads for each mutual connection with bi-directional linking
+    session.connections.forEach(connection => {
+      const bidirectionalPayload = {
+        profileViewed: {
+          name: connection.name,
+          profileUrl: connection.profileUrl,
+          linkedinId: this.extractLinkedInIdFromUrl(connection.profileUrl)
+        },
+        mutualConnectionsWith: {
+          name: sourceProfile.profileName || '',
+          profileUrl: sourceProfile.profileUrl || '',
+          linkedinId: this.extractLinkedInIdFromUrl(sourceProfile.profileUrl || ''),
+          encodedId: sourceProfile.encodedId || ''
+        },
+        connectionDetails: {
+          headline: connection.headline,
+          location: connection.location,
+          profileImageUrl: connection.profileImageUrl,
+          connectionDegree: connection.connectionDegree,
+          isPremium: connection.isPremium,
+          extractedAt: connection.extractedAt
+        },
+        metadata: {
+          timestamp: new Date().toISOString(),
+          sessionId: this.generateSessionId(),
+          version: '2.0',
+          source: 'linkedin-bidirectional-connection',
+          relationType: 'mutual_connection'
+        }
+      };
+      
+      payloads.push(bidirectionalPayload);
+    });
+
+    return payloads;
+  }
+
+  // Extract LinkedIn ID from profile URL
+  extractLinkedInIdFromUrl(url) {
+    try {
+      const match = url.match(/\/in\/([^\/\?]+)/);
+      return match ? match[1] : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
   generateSessionId() {
     return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
   }
@@ -448,6 +705,12 @@ class AntiDetectionManager {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   const parser = new LinkedInMutualConnectionsParser();
   
+  if (request.action === 'parseLinkedInProfile') {
+    const profileData = parser.parseProfilePage();
+    sendResponse({ success: true, data: profileData });
+    return true;
+  }
+  
   if (request.action === 'detectMutualConnections') {
     const detectionResult = parser.detectMutualConnections();
     sendResponse({ success: true, data: detectionResult });
@@ -458,6 +721,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     parser.parseAllMutualConnections(request.profileData)
       .then(result => {
         sendResponse({ success: true, data: result });
+      })
+      .catch(error => {
+        sendResponse({ success: false, error: error.message });
+      });
+    return true; // Keep channel open for async response
+  }
+  
+  if (request.action === 'parseAllMutualConnectionsBidirectional') {
+    parser.parseAllMutualConnections(request.profileData)
+      .then(result => {
+        const bidirectionalPayloads = parser.buildBidirectionalPayloads();
+        sendResponse({ success: true, data: bidirectionalPayloads });
       })
       .catch(error => {
         sendResponse({ success: false, error: error.message });
