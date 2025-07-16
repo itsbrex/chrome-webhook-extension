@@ -571,9 +571,7 @@ async function handleLinkedInMutualConnections(tab) {
           
           if (parseResult.success) {
             // Send each payload separately
-            for (const payload of parseResult.data) {
-              await sendLinkedInDataToWebhooks(payload);
-            }
+            await Promise.all(parseResult.data.map(payload => sendLinkedInDataToWebhooks(payload)));
             showNotification('✅ LinkedIn Parser', `Successfully parsed ${parseResult.data.length} bi-directional payloads`, true);
           }
         } else {
