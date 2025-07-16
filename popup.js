@@ -311,6 +311,8 @@ function loadSettings() {
   chrome.storage.local.get({ 
     settings: { notificationInterval: 5 },
     linkedinAutoDetect: false,
+    linkedinAutoMutualConnections: false,
+    linkedinBidirectional: false,
     linkedinWebhooks: 'none',
     selectedLinkedinWebhooks: [],
     linkedinDelay: 3
@@ -325,6 +327,8 @@ function loadSettings() {
     
     // LinkedIn settings
     document.getElementById('linkedinAutoDetect').checked = data.linkedinAutoDetect;
+    document.getElementById('linkedinAutoMutualConnections').checked = data.linkedinAutoMutualConnections;
+    document.getElementById('linkedinBidirectional').checked = data.linkedinBidirectional;
     document.getElementById('linkedinWebhooks').value = data.linkedinWebhooks;
     document.getElementById('linkedinDelay').value = data.linkedinDelay;
     
@@ -517,6 +521,8 @@ document.addEventListener('DOMContentLoaded', function() {
     e.preventDefault();
     
     const linkedinAutoDetect = document.getElementById('linkedinAutoDetect').checked;
+    const linkedinAutoMutualConnections = document.getElementById('linkedinAutoMutualConnections').checked;
+    const linkedinBidirectional = document.getElementById('linkedinBidirectional').checked;
     const linkedinWebhooks = document.getElementById('linkedinWebhooks').value;
     const linkedinDelay = parseInt(document.getElementById('linkedinDelay').value);
     
@@ -540,6 +546,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const linkedinSettings = {
       linkedinAutoDetect,
+      linkedinAutoMutualConnections,
+      linkedinBidirectional,
       linkedinWebhooks,
       selectedLinkedinWebhooks,
       linkedinDelay

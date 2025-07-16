@@ -213,6 +213,12 @@ function sendToWebhook(webhookUrl, info, tabId) {
 }
 
 function extractDataAndSend(webhookUrl, urlToSend, type, tabId, selectionText) {
+  // Check if this is a LinkedIn profile page and should use LinkedIn-specific extraction
+  if (type === 'page' && urlToSend.includes('linkedin.com/in/')) {
+    extractLinkedInProfileAndSend(webhookUrl, urlToSend, tabId);
+    return;
+  }
+  
   let codeToExecute;
 
   if (type === 'page') {
@@ -298,6 +304,111 @@ function extractDataAndSend(webhookUrl, urlToSend, type, tabId, selectionText) {
       }
 
       // Find webhook to get rate limit
+      chrome.storage.local.get('webhooks', function (webhooksData) {
+        const webhook = webhooksData.webhooks?.find(wh => wh.url === webhookUrl);
+        const rateLimit = webhook ? webhook.rateLimit || 0 : 0;
+        
+        addToQueue(webhookUrl, payload, webhookName, rateLimit);
+      });
+    });
+  });
+}
+
+// Extract LinkedIn profile data and send to webhook
+async function extractLinkedInProfileAndSend(webhookUrl, urlToSend, tabId) {
+  try {
+    // Use LinkedIn-specific parsing
+    const parseResult = await chrome.tabs.sendMessage(tabId, {
+      action: 'parseLinkedInProfile'
+    });
+    
+    if (!parseResult.success) {
+      console.error('LinkedIn profile parsing failed, falling back to basic extraction');
+      // Fall back to basic page extraction
+      extractDataAndSendBasic(webhookUrl, urlToSend, 'page', tabId, null);
+      return;
+    }
+    
+    const profileData = parseResult.data;
+    
+    // Find webhook name for notification
+    chrome.storage.local.get('webhooks', function (data) {
+      const webhook = data.webhooks?.find(wh => wh.url === webhookUrl);
+      const webhookName = webhook ? webhook.name : 'Webhook';
+      
+      // Build enhanced LinkedIn payload
+      const payload = {
+        url: urlToSend,
+        timestamp: new Date().toISOString(),
+        type: 'linkedin_profile',
+        profile: profileData,
+        source: 'chrome_extension_linkedin_parser'
+      };
+
+      // Find webhook to get rate limit
+      chrome.storage.local.get('webhooks', function (webhooksData) {
+        const webhook = webhooksData.webhooks?.find(wh => wh.url === webhookUrl);
+        const rateLimit = webhook ? webhook.rateLimit || 0 : 0;
+        
+        addToQueue(webhookUrl, payload, webhookName, rateLimit);
+      });
+    });
+    
+    // Check if auto mutual connections parsing is enabled
+    chrome.storage.local.get({ linkedinAutoMutualConnections: false }, async function (settings) {
+      if (settings.linkedinAutoMutualConnections && profileData.mutualConnectionsUrl) {
+        try {
+          await handleLinkedInMutualConnectionsAuto(tabId, profileData);
+        } catch (error) {
+          console.error('Auto mutual connections parsing failed:', error);
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('LinkedIn profile extraction failed:', error);
+    // Fall back to basic page extraction
+    extractDataAndSendBasic(webhookUrl, urlToSend, 'page', tabId, null);
+  }
+}
+
+// Basic page extraction fallback
+function extractDataAndSendBasic(webhookUrl, urlToSend, type, tabId, selectionText) {
+  chrome.scripting.executeScript({
+    target: { tabId: tabId },
+    func: function () {
+      return {
+        title: document.title,
+        description: document.querySelector('meta[name="description"]')?.getAttribute('content') || null,
+        keywords: document.querySelector('meta[name="keywords"]')?.getAttribute('content') || null,
+        favicon: document.querySelector('link[rel="icon"]')?.href || document.querySelector('link[rel="shortcut icon"]')?.href || null
+      };
+    }
+  }, (injectionResults) => {
+    if (chrome.runtime.lastError) {
+      console.error('Script injection failed:', chrome.runtime.lastError.message);
+      return;
+    }
+    const extractedData = injectionResults[0]?.result;
+    
+    chrome.storage.local.get('webhooks', function (data) {
+      const webhook = data.webhooks?.find(wh => wh.url === webhookUrl);
+      const webhookName = webhook ? webhook.name : 'Webhook';
+      
+      const payload = {
+        url: urlToSend,
+        timestamp: new Date().toISOString(),
+        type: type,
+        title: extractedData?.title || null,
+        description: extractedData?.description || null,
+        keywords: extractedData?.keywords || null,
+        favicon: extractedData?.favicon || null
+      };
+
+      if (selectionText) {
+        payload.selectedText = selectionText;
+      }
+
       chrome.storage.local.get('webhooks', function (webhooksData) {
         const webhook = webhooksData.webhooks?.find(wh => wh.url === webhookUrl);
         const rateLimit = webhook ? webhook.rateLimit || 0 : 0;
@@ -446,24 +557,55 @@ async function handleLinkedInMutualConnections(tab) {
       status: 'parsing'
     });
     
-    // Parse all mutual connections
-    const parseResult = await chrome.tabs.sendMessage(searchTab.id, {
-      action: 'parseAllMutualConnections',
-      profileData: linkedinSessions.get(sessionId).profileData
+    // Check if bi-directional parsing is enabled
+    chrome.storage.local.get({ linkedinBidirectional: false }, async function (settings) {
+      try {
+        let parseResult;
+        
+        if (settings.linkedinBidirectional) {
+          // Parse with bi-directional payloads
+          parseResult = await chrome.tabs.sendMessage(searchTab.id, {
+            action: 'parseAllMutualConnectionsBidirectional',
+            profileData: linkedinSessions.get(sessionId).profileData
+          });
+          
+          if (parseResult.success) {
+            // Send each payload separately
+            for (const payload of parseResult.data) {
+              await sendLinkedInDataToWebhooks(payload);
+            }
+            showNotification('✅ LinkedIn Parser', `Successfully parsed ${parseResult.data.length} bi-directional payloads`, true);
+          }
+        } else {
+          // Parse with single payload
+          parseResult = await chrome.tabs.sendMessage(searchTab.id, {
+            action: 'parseAllMutualConnections',
+            profileData: linkedinSessions.get(sessionId).profileData
+          });
+          
+          if (parseResult.success) {
+            await sendLinkedInDataToWebhooks(parseResult.data);
+            showNotification('✅ LinkedIn Parser', `Successfully parsed ${parseResult.data.totalCount} mutual connections`, true);
+          }
+        }
+        
+        if (!parseResult.success) {
+          throw new Error(parseResult.error || 'Failed to parse mutual connections');
+        }
+        
+      } catch (error) {
+        console.error('LinkedIn parsing error:', error);
+        showNotification('❌ LinkedIn Parser', `Error: ${error.message}`, false);
+      } finally {
+        // Close parsing tab
+        try {
+          await chrome.tabs.remove(searchTab.id);
+        } catch (e) {
+          // Tab might already be closed
+        }
+        linkedinSessions.delete(sessionId);
+      }
     });
-    
-    if (!parseResult.success) {
-      throw new Error(parseResult.error || 'Failed to parse mutual connections');
-    }
-    
-    // Close parsing tab
-    await chrome.tabs.remove(searchTab.id);
-    linkedinSessions.delete(sessionId);
-    
-    // Send data to webhooks
-    await sendLinkedInDataToWebhooks(parseResult.data);
-    
-    showNotification('✅ LinkedIn Parser', `Successfully parsed ${parseResult.data.totalCount} mutual connections`, true);
     
   } catch (error) {
     console.error('LinkedIn parsing error:', error);
@@ -478,6 +620,94 @@ async function handleLinkedInMutualConnections(tab) {
       }
       linkedinSessions.delete(sessionId);
     }
+  }
+}
+
+// Auto mutual connections parsing (called from profile extraction)
+async function handleLinkedInMutualConnectionsAuto(tabId, profileData) {
+  try {
+    if (!profileData.mutualConnectionsUrl) {
+      console.log('No mutual connections URL found for auto parsing');
+      return;
+    }
+    
+    showNotification('🔄 LinkedIn Auto Parser', 'Auto-parsing mutual connections...', true);
+    
+    // Create new tab for parsing
+    const searchTab = await chrome.tabs.create({
+      url: profileData.mutualConnectionsUrl,
+      active: false
+    });
+    
+    // Wait for tab to load
+    await waitForTabLoad(searchTab.id);
+    
+    // Start parsing process
+    const sessionId = generateSessionId();
+    linkedinSessions.set(sessionId, {
+      tabId: searchTab.id,
+      profileData: {
+        profileUrl: profileData.profileUrl,
+        profileName: profileData.name,
+        encodedId: profileData.linkedinId,
+        totalCount: profileData.mutualConnectionsCount
+      },
+      status: 'auto-parsing'
+    });
+    
+    // Check if bi-directional parsing is enabled
+    chrome.storage.local.get({ linkedinBidirectional: false }, async function (settings) {
+      try {
+        let parseResult;
+        
+        if (settings.linkedinBidirectional) {
+          // Parse with bi-directional payloads
+          parseResult = await chrome.tabs.sendMessage(searchTab.id, {
+            action: 'parseAllMutualConnectionsBidirectional',
+            profileData: linkedinSessions.get(sessionId).profileData
+          });
+          
+          if (parseResult.success) {
+            // Send each payload separately
+            for (const payload of parseResult.data) {
+              await sendLinkedInDataToWebhooks(payload);
+            }
+            showNotification('✅ LinkedIn Auto Parser', `Auto-parsed ${parseResult.data.length} bi-directional connections`, true);
+          }
+        } else {
+          // Parse with single payload
+          parseResult = await chrome.tabs.sendMessage(searchTab.id, {
+            action: 'parseAllMutualConnections',
+            profileData: linkedinSessions.get(sessionId).profileData
+          });
+          
+          if (parseResult.success) {
+            await sendLinkedInDataToWebhooks(parseResult.data);
+            showNotification('✅ LinkedIn Auto Parser', `Auto-parsed ${parseResult.data.totalCount} mutual connections`, true);
+          }
+        }
+        
+        if (!parseResult.success) {
+          throw new Error(parseResult.error || 'Failed to auto-parse mutual connections');
+        }
+        
+      } catch (error) {
+        console.error('LinkedIn auto-parsing error:', error);
+        showNotification('❌ LinkedIn Auto Parser', `Auto-parse error: ${error.message}`, false);
+      } finally {
+        // Close parsing tab
+        try {
+          await chrome.tabs.remove(searchTab.id);
+        } catch (e) {
+          // Tab might already be closed
+        }
+        linkedinSessions.delete(sessionId);
+      }
+    });
+    
+  } catch (error) {
+    console.error('LinkedIn auto-parsing error:', error);
+    showNotification('❌ LinkedIn Auto Parser', `Auto-parse error: ${error.message}`, false);
   }
 }
 
