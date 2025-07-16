@@ -35,6 +35,9 @@ async function build() {
       const sourcePath = includePath;
       const destPath = path.join(DIST_DIR, includePath);
       
+      // Ensure the parent directory of destPath exists
+      await mkdir(path.dirname(destPath), { recursive: true });
+      
       if (existsSync(sourcePath)) {
         const stats = await lstat(sourcePath);
         if (stats.isDirectory()) {
