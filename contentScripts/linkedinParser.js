@@ -97,6 +97,15 @@ class LinkedInMutualConnectionsParser {
       const urlMatch = profile.profileUrl.match(/\/in\/([^\/]+)/);
       profile.linkedinId = urlMatch ? urlMatch[1] : null;
 
+      // Extract experience information
+      profile.experience = this.extractExperienceData();
+
+      // Extract education information
+      profile.education = this.extractEducationData();
+
+      // Extract skills information
+      profile.skills = this.extractSkillsData();
+
       console.log('Profile parsing completed:', profile);
       return profile;
       
@@ -121,6 +130,106 @@ class LinkedInMutualConnectionsParser {
     try {
       const element = document.querySelector(selector);
       return element ? element.getAttribute(attribute) : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // Extract experience data from LinkedIn profile
+  extractExperienceData() {
+    try {
+      const experienceSection = document.querySelector(this.config.selectors.experienceSection);
+      if (!experienceSection) return [];
+
+      const experiences = [];
+      const experienceItems = experienceSection.querySelectorAll('li.artdeco-list__item, .pvs-list__paged-list-item, .pv-entity__position-group-pager li');
+      
+      for (const item of experienceItems) {
+        const experience = {
+          title: this.extractElementText(item, '.t-bold span[aria-hidden="true"], .mr1.t-bold span, .pv-entity__summary-info h3'),
+          company: this.extractElementText(item, '.t-14.t-normal span[aria-hidden="true"], .pv-entity__secondary-title, .t-14.t-normal a'),
+          duration: this.extractElementText(item, '.t-14.t-normal.t-black--light span[aria-hidden="true"], .pv-entity__bullet-item-v2, .t-14.t-normal.t-black--light'),
+          location: this.extractElementText(item, '.t-12.t-normal.t-black--light span[aria-hidden="true"], .pv-entity__location span:last-child'),
+          description: this.extractElementText(item, '.inline-show-more-text, .pv-entity__extra-details')
+        };
+
+        // Only add if we have at least a title
+        if (experience.title) {
+          experiences.push(experience);
+        }
+      }
+
+      return experiences;
+    } catch (error) {
+      console.warn('Error extracting experience data:', error);
+      return [];
+    }
+  }
+
+  // Extract education data from LinkedIn profile
+  extractEducationData() {
+    try {
+      const educationSection = document.querySelector(this.config.selectors.educationSection);
+      if (!educationSection) return [];
+
+      const educations = [];
+      const educationItems = educationSection.querySelectorAll('li.artdeco-list__item, .pvs-list__paged-list-item, .pv-education-entity');
+      
+      for (const item of educationItems) {
+        const education = {
+          school: this.extractElementText(item, '.t-bold span[aria-hidden="true"], .mr1.t-bold span, .pv-entity__school-name'),
+          degree: this.extractElementText(item, '.t-14.t-normal span[aria-hidden="true"], .pv-entity__degree-name .pv-entity__comma-item'),
+          fieldOfStudy: this.extractElementText(item, '.t-14.t-normal span[aria-hidden="true"]:nth-child(2), .pv-entity__fos .pv-entity__comma-item'),
+          duration: this.extractElementText(item, '.t-14.t-normal.t-black--light span[aria-hidden="true"], .pv-entity__dates .pv-entity__bullet-item'),
+          description: this.extractElementText(item, '.inline-show-more-text, .pv-entity__extra-details')
+        };
+
+        // Only add if we have at least a school name
+        if (education.school) {
+          educations.push(education);
+        }
+      }
+
+      return educations;
+    } catch (error) {
+      console.warn('Error extracting education data:', error);
+      return [];
+    }
+  }
+
+  // Extract skills data from LinkedIn profile
+  extractSkillsData() {
+    try {
+      const skillsSection = document.querySelector(this.config.selectors.skillsSection);
+      if (!skillsSection) return [];
+
+      const skills = [];
+      const skillItems = skillsSection.querySelectorAll('li.artdeco-list__item, .pvs-list__paged-list-item, .pv-skill-category-entity__skill-wrapper');
+      
+      for (const item of skillItems) {
+        const skill = {
+          name: this.extractElementText(item, '.t-bold span[aria-hidden="true"], .mr1.t-bold span, .pv-skill-category-entity__name a'),
+          endorsements: this.extractElementText(item, '.t-12.t-normal.t-black--light, .pv-skill-category-entity__endorsement-count')
+        };
+
+        // Only add if we have a skill name
+        if (skill.name) {
+          skills.push(skill);
+        }
+      }
+
+      return skills;
+    } catch (error) {
+      console.warn('Error extracting skills data:', error);
+      return [];
+    }
+  }
+
+  // Helper method to extract text from element within a parent container
+  extractElementText(parentElement, selector) {
+    try {
+      const element = parentElement.querySelector(selector);
+      return element ? (element.textContent || element.innerText || '').trim() : null;
     } catch (error) {
       return null;
     }
