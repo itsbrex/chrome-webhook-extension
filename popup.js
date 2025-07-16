@@ -140,7 +140,8 @@ function loadWebhooks() {
     }
     
     // Update LinkedIn webhook checkboxes if visible
-    if (document.getElementById('webhook-selection-group').style.display !== 'none') {
+    const webhookSelectionGroup = document.getElementById('webhook-selection-group');
+    if (webhookSelectionGroup && webhookSelectionGroup.style.display !== 'none') {
       chrome.storage.local.get({ selectedLinkedinWebhooks: [] }, function (linkedinData) {
         populateWebhookCheckboxes(linkedinData.selectedLinkedinWebhooks);
       });
