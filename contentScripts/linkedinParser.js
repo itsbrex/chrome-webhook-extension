@@ -12,18 +12,18 @@ class LinkedInMutualConnectionsParser {
         scrollDelay: 100
       },
       selectors: {
-        mutualConnectionsLink: 'a[href*="facetConnectionOf"]',
-        connectionName: 'span.entity-result__title-text a span[dir="ltr"]',
-        profileUrl: 'a.app-aware-link[href*="/in/"]',
-        profileHeadline: '.entity-result__primary-subtitle',
-        location: '.entity-result__secondary-subtitle',
-        profileImage: 'img.presence-entity__image',
-        connectionBadge: '.entity-result__badge-text',
-        premiumIndicator: 'li-icon[type="linkedin-bug"]',
-        searchContainer: '.search-results-container',
-        resultItems: 'li.reusable-search__result-container',
-        paginationContainer: '.artdeco-pagination',
-        nextPageButton: 'button[aria-label*="Next"]'
+        mutualConnectionsLink: 'a[href*="facetConnectionOf"], a[href*="mutual"]',
+        connectionName: 'span.entity-result__title-text a span[dir="ltr"], .entity-result__title-text a span',
+        profileUrl: 'a.app-aware-link[href*="/in/"], a[href*="/in/"]',
+        profileHeadline: '.entity-result__primary-subtitle, .entity-result__summary',
+        location: '.entity-result__secondary-subtitle, .entity-result__location',
+        profileImage: 'img.presence-entity__image, .entity-result__image img',
+        connectionBadge: '.entity-result__badge-text, .entity-result__badge',
+        premiumIndicator: 'li-icon[type="linkedin-bug"], .premium-icon',
+        searchContainer: '.search-results-container, .search-results__list',
+        resultItems: 'li.reusable-search__result-container, .entity-result, .search-result',
+        paginationContainer: '.artdeco-pagination, .pagination',
+        nextPageButton: 'button[aria-label*="Next"], .artdeco-pagination__button--next'
       },
       maxPagesPerSession: 50,
       maxConnectionsPerPage: 10,
@@ -37,81 +37,171 @@ class LinkedInMutualConnectionsParser {
 
   // Detect if current page has mutual connections section
   detectMutualConnections() {
-    const mutualConnectionsElement = document.querySelector(this.config.selectors.mutualConnectionsLink);
-    if (!mutualConnectionsElement) return null;
+    try {
+      const mutualConnectionsElement = document.querySelector(this.config.selectors.mutualConnectionsLink);
+      if (!mutualConnectionsElement) {
+        console.log('No mutual connections link found on page');
+        return null;
+      }
 
-    const href = mutualConnectionsElement.href;
-    const url = new URL(href);
-    
-    // Extract encoded profile ID
-    const encodedId = url.searchParams.get('facetConnectionOf');
-    if (!encodedId) return null;
+      const href = mutualConnectionsElement.href;
+      if (!href) {
+        console.log('Mutual connections link has no href');
+        return null;
+      }
 
-    // Extract connection count from text
-    const text = mutualConnectionsElement.textContent || '';
-    const countMatch = text.match(/(\d+)\s+(?:other\s+)?mutual\s+connections/i);
-    const totalCount = countMatch ? parseInt(countMatch[1]) + 2 : null; // +2 for the named ones
+      const url = new URL(href);
+      
+      // Extract encoded profile ID
+      const encodedId = url.searchParams.get('facetConnectionOf');
+      if (!encodedId) {
+        console.log('No facetConnectionOf parameter found in URL:', href);
+        return null;
+      }
 
-    return {
-      searchUrl: href,
-      encodedId: encodedId,
-      totalCount: totalCount,
-      text: text
-    };
+      // Extract connection count from text
+      const text = mutualConnectionsElement.textContent || '';
+      const countMatch = text.match(/(\d+)\s+(?:other\s+)?mutual\s+connections/i);
+      const totalCount = countMatch ? parseInt(countMatch[1]) + 2 : null; // +2 for the named ones
+
+      console.log('Detected mutual connections:', { encodedId, totalCount, text: text.trim() });
+
+      return {
+        searchUrl: href,
+        encodedId: encodedId,
+        totalCount: totalCount,
+        text: text.trim()
+      };
+    } catch (error) {
+      console.error('Error detecting mutual connections:', error);
+      return null;
+    }
   }
 
   // Parse connections from search results page
   async parseSearchResults() {
-    await this.antiDetection.randomDelay();
-    
-    if (this.antiDetection.detectBotProtection()) {
-      throw new Error('Bot protection detected - aborting parsing');
-    }
-
-    const connections = [];
-    const resultItems = document.querySelectorAll(this.config.selectors.resultItems);
-    
-    for (const item of resultItems) {
-      try {
-        const connection = await this.extractConnectionData(item);
-        if (connection) {
-          connections.push(connection);
-        }
-      } catch (error) {
-        console.warn('Failed to extract connection data:', error);
-      }
+    try {
+      await this.antiDetection.randomDelay();
       
-      // Small delay between items to appear human-like
-      await this.antiDetection.randomDelay(200, 500);
-    }
+      if (this.antiDetection.detectBotProtection()) {
+        throw new Error('Bot protection detected - aborting parsing');
+      }
 
-    return connections;
+      const connections = [];
+      const resultItems = document.querySelectorAll(this.config.selectors.resultItems);
+      
+      console.log(`Found ${resultItems.length} result items on page`);
+      
+      if (resultItems.length === 0) {
+        // Try alternative selectors
+        const alternativeItems = document.querySelectorAll('.entity-result, .search-result__wrapper');
+        console.log(`Trying alternative selectors, found ${alternativeItems.length} items`);
+        
+        if (alternativeItems.length === 0) {
+          console.warn('No result items found with any selector');
+          return connections;
+        }
+        
+        // Use alternative items
+        for (const item of alternativeItems) {
+          try {
+            const connection = await this.extractConnectionData(item);
+            if (connection) {
+              connections.push(connection);
+            }
+          } catch (error) {
+            console.warn('Failed to extract connection data from alternative selector:', error);
+          }
+          await this.antiDetection.randomDelay(200, 500);
+        }
+      } else {
+        // Use primary selector
+        for (const item of resultItems) {
+          try {
+            const connection = await this.extractConnectionData(item);
+            if (connection) {
+              connections.push(connection);
+            }
+          } catch (error) {
+            console.warn('Failed to extract connection data:', error);
+          }
+          
+          // Small delay between items to appear human-like
+          await this.antiDetection.randomDelay(200, 500);
+        }
+      }
+
+      console.log(`Successfully parsed ${connections.length} connections from page`);
+      return connections;
+      
+    } catch (error) {
+      console.error('Error parsing search results:', error);
+      throw error;
+    }
   }
 
   // Extract data from individual connection element
   async extractConnectionData(element) {
-    const nameElement = element.querySelector(this.config.selectors.connectionName);
-    const profileUrlElement = element.querySelector(this.config.selectors.profileUrl);
-    const headlineElement = element.querySelector(this.config.selectors.profileHeadline);
-    const locationElement = element.querySelector(this.config.selectors.location);
-    const imageElement = element.querySelector(this.config.selectors.profileImage);
-    const badgeElement = element.querySelector(this.config.selectors.connectionBadge);
-    const premiumElement = element.querySelector(this.config.selectors.premiumIndicator);
+    try {
+      // Try multiple selectors for name
+      let nameElement = element.querySelector(this.config.selectors.connectionName);
+      if (!nameElement) {
+        nameElement = element.querySelector('.entity-result__title-text a, .search-result__title a, .actor-name');
+      }
+      
+      // Try multiple selectors for profile URL
+      let profileUrlElement = element.querySelector(this.config.selectors.profileUrl);
+      if (!profileUrlElement) {
+        profileUrlElement = element.querySelector('a[href*="/in/"], .entity-result__title-text a');
+      }
+      
+      if (!nameElement || !profileUrlElement) {
+        console.warn('Essential data missing for connection:', {
+          hasName: !!nameElement,
+          hasUrl: !!profileUrlElement
+        });
+        return null; // Skip if essential data missing
+      }
 
-    if (!nameElement || !profileUrlElement) {
-      return null; // Skip if essential data missing
+      // Extract with fallbacks
+      const headlineElement = element.querySelector(this.config.selectors.profileHeadline) ||
+                              element.querySelector('.entity-result__summary, .search-result__summary');
+      
+      const locationElement = element.querySelector(this.config.selectors.location) ||
+                              element.querySelector('.entity-result__location, .search-result__location');
+      
+      const imageElement = element.querySelector(this.config.selectors.profileImage) ||
+                           element.querySelector('img[alt*="profile"], .entity-result__image img');
+      
+      const badgeElement = element.querySelector(this.config.selectors.connectionBadge) ||
+                           element.querySelector('.entity-result__badge, .search-result__badge');
+      
+      const premiumElement = element.querySelector(this.config.selectors.premiumIndicator) ||
+                             element.querySelector('.premium-icon, [data-test-id*="premium"]');
+
+      const connection = {
+        name: (nameElement.textContent || nameElement.innerText || '').trim(),
+        profileUrl: profileUrlElement.href || '',
+        headline: (headlineElement?.textContent || headlineElement?.innerText || '').trim(),
+        location: (locationElement?.textContent || locationElement?.innerText || '').trim(),
+        profileImageUrl: imageElement?.src || '',
+        connectionDegree: (badgeElement?.textContent || badgeElement?.innerText || '').trim(),
+        isPremium: !!premiumElement,
+        extractedAt: new Date().toISOString()
+      };
+
+      // Validate essential fields
+      if (!connection.name || !connection.profileUrl) {
+        console.warn('Connection missing essential data after extraction:', connection);
+        return null;
+      }
+
+      return connection;
+      
+    } catch (error) {
+      console.error('Error extracting connection data:', error);
+      return null;
     }
-
-    return {
-      name: nameElement.textContent?.trim() || '',
-      profileUrl: profileUrlElement.href || '',
-      headline: headlineElement?.textContent?.trim() || '',
-      location: locationElement?.textContent?.trim() || '',
-      profileImageUrl: imageElement?.src || '',
-      connectionDegree: badgeElement?.textContent?.trim() || '',
-      isPremium: !!premiumElement,
-      extractedAt: new Date().toISOString()
-    };
   }
 
   // Check if there are more pages to parse
@@ -231,6 +321,25 @@ class LinkedInMutualConnectionsParser {
 
   generateSessionId() {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  // Test function to validate selectors on current page
+  testSelectors() {
+    console.log('Testing LinkedIn selectors on current page...');
+    const results = {};
+    
+    for (const [key, selector] of Object.entries(this.config.selectors)) {
+      const elements = document.querySelectorAll(selector);
+      results[key] = {
+        selector: selector,
+        count: elements.length,
+        elements: elements.length > 0 ? Array.from(elements).slice(0, 3) : []
+      };
+      
+      console.log(`${key}: ${elements.length} elements found with selector "${selector}"`);
+    }
+    
+    return results;
   }
 }
 
@@ -360,6 +469,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const antiDetection = new AntiDetectionManager();
     const isBlocked = antiDetection.detectBotProtection();
     sendResponse({ success: true, isBlocked });
+    return true;
+  }
+  
+  if (request.action === 'testSelectors') {
+    const selectorResults = parser.testSelectors();
+    sendResponse({ success: true, data: selectorResults });
     return true;
   }
 });

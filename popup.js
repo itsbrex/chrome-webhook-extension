@@ -560,6 +560,32 @@ document.addEventListener('DOMContentLoaded', function() {
     updateWebhookSelectionVisibility(e.target.value);
   });
   
+  // Test LinkedIn selectors button
+  document.getElementById('testLinkedinSelectors').addEventListener('click', function () {
+    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+      const currentTab = tabs[0];
+      
+      if (!currentTab.url.includes('linkedin.com')) {
+        showError('Please navigate to a LinkedIn page first.');
+        return;
+      }
+      
+      chrome.tabs.sendMessage(currentTab.id, { action: 'testSelectors' }, function (response) {
+        if (chrome.runtime.lastError) {
+          showError('Error testing selectors: ' + chrome.runtime.lastError.message);
+          return;
+        }
+        
+        if (response && response.success) {
+          showSuccess('Selector test completed. Check browser console for detailed results.');
+          console.log('LinkedIn selector test results:', response.data);
+        } else {
+          showError('Failed to test selectors.');
+        }
+      });
+    });
+  });
+  
   loadWebhooks();
   loadSettings();
 });
