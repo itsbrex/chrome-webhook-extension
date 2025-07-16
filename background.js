@@ -2,6 +2,9 @@
 const webhookQueues = new Map(); // Map of webhookUrl -> { queue: [], lastSent: timestamp, timer: timeoutId }
 const queueNotifications = new Map(); // Map of notificationId -> { webhookUrl, intervalId }
 
+// LinkedIn parsing state
+const linkedinSessions = new Map(); // Map of sessionId -> { tabId, profileData, status }
+
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: "sendToWebhook",
@@ -13,6 +16,19 @@ chrome.runtime.onInstalled.addListener(() => {
     }
     updateWebhookMenus();
   });
+  
+  // Add LinkedIn context menu
+  chrome.contextMenus.create({
+    id: "linkedinMutualConnections",
+    title: "Parse LinkedIn Mutual Connections",
+    contexts: ["page"],
+    documentUrlPatterns: ["https://www.linkedin.com/in/*"]
+  }, () => {
+    if (chrome.runtime.lastError) {
+      console.error(`Error creating LinkedIn menu: ${chrome.runtime.lastError.message}`);
+    }
+  });
+  
   initializeQueues();
 });
 
@@ -178,6 +194,8 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
         sendToWebhook(webhook.url, info, tab.id);
       }
     });
+  } else if (info.menuItemId === "linkedinMutualConnections") {
+    handleLinkedInMutualConnections(tab);
   }
 });
 
@@ -388,5 +406,168 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'local' && changes.webhooks) {
     updateWebhookMenus();
     initializeQueues();
+  }
+});
+
+// LinkedIn Mutual Connections Functionality
+async function handleLinkedInMutualConnections(tab) {
+  try {
+    // First, detect mutual connections on current page
+    const detectionResult = await chrome.tabs.sendMessage(tab.id, {
+      action: 'detectMutualConnections'
+    });
+    
+    if (!detectionResult.success || !detectionResult.data) {
+      showNotification('❌ LinkedIn Parser', 'No mutual connections found on this page', false);
+      return;
+    }
+    
+    const mutualConnectionsData = detectionResult.data;
+    showNotification('🔍 LinkedIn Parser', `Found ${mutualConnectionsData.totalCount || 'some'} mutual connections. Starting parsing...`, true);
+    
+    // Create new tab for parsing
+    const searchTab = await chrome.tabs.create({
+      url: mutualConnectionsData.searchUrl,
+      active: false
+    });
+    
+    // Wait for tab to load
+    await waitForTabLoad(searchTab.id);
+    
+    // Start parsing process
+    const sessionId = generateSessionId();
+    linkedinSessions.set(sessionId, {
+      tabId: searchTab.id,
+      profileData: {
+        profileUrl: tab.url,
+        encodedId: mutualConnectionsData.encodedId,
+        totalCount: mutualConnectionsData.totalCount
+      },
+      status: 'parsing'
+    });
+    
+    // Parse all mutual connections
+    const parseResult = await chrome.tabs.sendMessage(searchTab.id, {
+      action: 'parseAllMutualConnections',
+      profileData: linkedinSessions.get(sessionId).profileData
+    });
+    
+    if (!parseResult.success) {
+      throw new Error(parseResult.error || 'Failed to parse mutual connections');
+    }
+    
+    // Close parsing tab
+    await chrome.tabs.remove(searchTab.id);
+    linkedinSessions.delete(sessionId);
+    
+    // Send data to webhooks
+    await sendLinkedInDataToWebhooks(parseResult.data);
+    
+    showNotification('✅ LinkedIn Parser', `Successfully parsed ${parseResult.data.totalCount} mutual connections`, true);
+    
+  } catch (error) {
+    console.error('LinkedIn parsing error:', error);
+    showNotification('❌ LinkedIn Parser', `Error: ${error.message}`, false);
+    
+    // Cleanup any sessions
+    for (const [sessionId, session] of linkedinSessions.entries()) {
+      try {
+        await chrome.tabs.remove(session.tabId);
+      } catch (e) {
+        // Tab might already be closed
+      }
+      linkedinSessions.delete(sessionId);
+    }
+  }
+}
+
+async function waitForTabLoad(tabId) {
+  return new Promise((resolve) => {
+    const listener = (tabUpdateId, changeInfo) => {
+      if (tabUpdateId === tabId && changeInfo.status === 'complete') {
+        chrome.tabs.onUpdated.removeListener(listener);
+        // Add extra delay for JavaScript execution
+        setTimeout(resolve, 2000);
+      }
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+  });
+}
+
+async function sendLinkedInDataToWebhooks(linkedinData) {
+  chrome.storage.local.get('webhooks', async function (data) {
+    if (!data.webhooks || data.webhooks.length === 0) {
+      showNotification('⚠️ LinkedIn Parser', 'No webhooks configured. Please add webhooks to receive LinkedIn data.', false);
+      return;
+    }
+    
+    // Get LinkedIn settings
+    const settings = await chrome.storage.local.get({ 
+      linkedinWebhooks: 'all', // 'all', 'selected', or 'none'
+      selectedLinkedinWebhooks: []
+    });
+    
+    let targetWebhooks = [];
+    
+    if (settings.linkedinWebhooks === 'all') {
+      targetWebhooks = data.webhooks;
+    } else if (settings.linkedinWebhooks === 'selected') {
+      targetWebhooks = data.webhooks.filter((_, index) => 
+        settings.selectedLinkedinWebhooks.includes(index)
+      );
+    }
+    
+    if (targetWebhooks.length === 0) {
+      showNotification('⚠️ LinkedIn Parser', 'No webhooks selected for LinkedIn data.', false);
+      return;
+    }
+    
+    // Enhanced payload with LinkedIn-specific metadata
+    const enhancedPayload = {
+      ...linkedinData,
+      timestamp: new Date().toISOString(),
+      type: 'linkedin_mutual_connections',
+      source: 'chrome_extension_linkedin_parser'
+    };
+    
+    // Send to each selected webhook
+    for (const webhook of targetWebhooks) {
+      try {
+        addToQueue(webhook.url, enhancedPayload, webhook.name, webhook.rateLimit || 0);
+      } catch (error) {
+        console.error(`Failed to queue LinkedIn data for webhook ${webhook.name}:`, error);
+      }
+    }
+    
+    showNotification('📤 LinkedIn Parser', `LinkedIn data queued for ${targetWebhooks.length} webhook(s)`, true);
+  });
+}
+
+function generateSessionId() {
+  return `linkedin_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// Message handler for LinkedIn content script communications
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'linkedinMutualConnectionsDetected') {
+    // Auto-detected mutual connections - could show notification or popup
+    showNotification('🔍 LinkedIn Parser', 'Mutual connections detected on this page', true);
+    sendResponse({ status: 'received' });
+    return true;
+  }
+  
+  if (request.action === 'linkedinParsingProgress') {
+    // Update parsing progress
+    console.log('LinkedIn parsing progress:', request.data);
+    sendResponse({ status: 'received' });
+    return true;
+  }
+  
+  if (request.action === 'linkedinParsingError') {
+    // Handle parsing errors
+    console.error('LinkedIn parsing error:', request.data);
+    showNotification('❌ LinkedIn Parser', `Error: ${request.data.message}`, false);
+    sendResponse({ status: 'received' });
+    return true;
   }
 });

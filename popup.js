@@ -138,6 +138,13 @@ function loadWebhooks() {
     } else {
       emptyState.classList.remove('hidden');
     }
+    
+    // Update LinkedIn webhook checkboxes if visible
+    if (document.getElementById('webhook-selection-group').style.display !== 'none') {
+      chrome.storage.local.get({ selectedLinkedinWebhooks: [] }, function (linkedinData) {
+        populateWebhookCheckboxes(linkedinData.selectedLinkedinWebhooks);
+      });
+    }
   });
 }
 
@@ -300,13 +307,67 @@ function clearForm() {
 
 // Settings management
 function loadSettings() {
-  chrome.storage.local.get({ settings: { notificationInterval: 5 } }, function (data) {
+  chrome.storage.local.get({ 
+    settings: { notificationInterval: 5 },
+    linkedinAutoDetect: false,
+    linkedinWebhooks: 'none',
+    selectedLinkedinWebhooks: [],
+    linkedinDelay: 3
+  }, function (data) {
     if (chrome.runtime.lastError) {
       console.error('Failed to load settings:', chrome.runtime.lastError);
       return;
     }
     
+    // Notification settings
     document.getElementById('notificationInterval').value = data.settings.notificationInterval;
+    
+    // LinkedIn settings
+    document.getElementById('linkedinAutoDetect').checked = data.linkedinAutoDetect;
+    document.getElementById('linkedinWebhooks').value = data.linkedinWebhooks;
+    document.getElementById('linkedinDelay').value = data.linkedinDelay;
+    
+    // Update webhook selection visibility
+    updateWebhookSelectionVisibility(data.linkedinWebhooks);
+    
+    // Populate webhook checkboxes
+    populateWebhookCheckboxes(data.selectedLinkedinWebhooks);
+  });
+}
+
+function updateWebhookSelectionVisibility(webhookSetting) {
+  const selectionGroup = document.getElementById('webhook-selection-group');
+  selectionGroup.style.display = webhookSetting === 'selected' ? 'block' : 'none';
+}
+
+function populateWebhookCheckboxes(selectedWebhooks = []) {
+  chrome.storage.local.get('webhooks', function (data) {
+    const container = document.getElementById('webhook-checkboxes');
+    container.innerHTML = '';
+    
+    if (!data.webhooks || data.webhooks.length === 0) {
+      container.innerHTML = '<p style="color: var(--text-secondary); font-size: 12px; margin: 0;">No webhooks configured</p>';
+      return;
+    }
+    
+    data.webhooks.forEach((webhook, index) => {
+      const item = document.createElement('div');
+      item.className = 'webhook-checkbox-item';
+      
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.id = `webhook-${index}`;
+      checkbox.value = index;
+      checkbox.checked = selectedWebhooks.includes(index);
+      
+      const label = document.createElement('label');
+      label.htmlFor = `webhook-${index}`;
+      label.textContent = webhook.name;
+      
+      item.appendChild(checkbox);
+      item.appendChild(label);
+      container.appendChild(item);
+    });
   });
 }
 
@@ -448,6 +509,55 @@ document.addEventListener('DOMContentLoaded', function() {
       
       showSuccess('Settings saved successfully!');
     });
+  });
+  
+  // LinkedIn settings form submission
+  document.getElementById('linkedinSettingsForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    
+    const linkedinAutoDetect = document.getElementById('linkedinAutoDetect').checked;
+    const linkedinWebhooks = document.getElementById('linkedinWebhooks').value;
+    const linkedinDelay = parseInt(document.getElementById('linkedinDelay').value);
+    
+    // Validate delay
+    if (isNaN(linkedinDelay) || linkedinDelay < 1 || linkedinDelay > 10) {
+      showError('LinkedIn delay must be between 1 and 10 seconds.');
+      return;
+    }
+    
+    // Get selected webhooks if 'selected' option is chosen
+    let selectedLinkedinWebhooks = [];
+    if (linkedinWebhooks === 'selected') {
+      const checkboxes = document.querySelectorAll('#webhook-checkboxes input[type="checkbox"]:checked');
+      selectedLinkedinWebhooks = Array.from(checkboxes).map(cb => parseInt(cb.value));
+      
+      if (selectedLinkedinWebhooks.length === 0) {
+        showError('Please select at least one webhook for LinkedIn data.');
+        return;
+      }
+    }
+    
+    const linkedinSettings = {
+      linkedinAutoDetect,
+      linkedinWebhooks,
+      selectedLinkedinWebhooks,
+      linkedinDelay
+    };
+    
+    chrome.storage.local.set(linkedinSettings, function () {
+      if (chrome.runtime.lastError) {
+        console.error('Failed to save LinkedIn settings:', chrome.runtime.lastError);
+        showError('Error saving LinkedIn settings. Please try again.');
+        return;
+      }
+      
+      showSuccess('LinkedIn settings saved successfully!');
+    });
+  });
+  
+  // LinkedIn webhook selection change handler
+  document.getElementById('linkedinWebhooks').addEventListener('change', function (e) {
+    updateWebhookSelectionVisibility(e.target.value);
   });
   
   loadWebhooks();

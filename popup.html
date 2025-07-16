@@ -423,6 +423,38 @@
     .mb-0 { margin-bottom: 0; }
     .mb-sm { margin-bottom: var(--spacing-sm); }
     .mb-md { margin-bottom: var(--spacing-md); }
+    
+    /* LinkedIn Settings */
+    .webhook-checkboxes {
+      max-height: 120px;
+      overflow-y: auto;
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius);
+      padding: var(--spacing-sm);
+      background: var(--bg-secondary);
+    }
+    
+    .webhook-checkbox-item {
+      display: flex;
+      align-items: center;
+      padding: var(--spacing-xs);
+      margin-bottom: var(--spacing-xs);
+    }
+    
+    .webhook-checkbox-item:last-child {
+      margin-bottom: 0;
+    }
+    
+    .webhook-checkbox-item input[type="checkbox"] {
+      margin-right: var(--spacing-sm);
+    }
+    
+    .webhook-checkbox-item label {
+      flex: 1;
+      margin: 0;
+      font-size: 13px;
+      cursor: pointer;
+    }
   </style>
 </head>
 
@@ -513,6 +545,54 @@
             </div>
             <button type="submit" class="btn btn-primary">
               <i class="fa fa-save"></i> Save Settings
+            </button>
+          </form>
+        </div>
+      </div>
+      
+      <!-- LinkedIn Settings -->
+      <div class="form-section">
+        <div class="form-header">
+          <h3><i class="fab fa-linkedin"></i> LinkedIn Settings</h3>
+        </div>
+        <div class="form-content">
+          <form id="linkedinSettingsForm">
+            <div class="form-group">
+              <label>
+                <input type="checkbox" id="linkedinAutoDetect" style="margin-right: 8px;">
+                Auto-detect mutual connections on LinkedIn profiles
+              </label>
+              <small style="color: var(--text-secondary); font-size: 12px; display: block; margin-top: 4px;">
+                Automatically detect and notify when viewing profiles with mutual connections
+              </small>
+            </div>
+            
+            <div class="form-group">
+              <label for="linkedinWebhooks">Send LinkedIn data to:</label>
+              <select id="linkedinWebhooks" class="form-input">
+                <option value="none">Don't send LinkedIn data</option>
+                <option value="all">All configured webhooks</option>
+                <option value="selected">Selected webhooks only</option>
+              </select>
+            </div>
+            
+            <div class="form-group" id="webhook-selection-group" style="display: none;">
+              <label>Select webhooks for LinkedIn data:</label>
+              <div id="webhook-checkboxes" class="webhook-checkboxes">
+                <!-- Webhook checkboxes will be populated dynamically -->
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label for="linkedinDelay">Parsing delay (seconds)</label>
+              <input type="number" id="linkedinDelay" class="form-input" min="1" max="10" value="3">
+              <small style="color: var(--text-secondary); font-size: 12px;">
+                Delay between page parsing to avoid detection (1-10 seconds)
+              </small>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">
+              <i class="fa fa-save"></i> Save LinkedIn Settings
             </button>
           </form>
         </div>
