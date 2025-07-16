@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { mkdir, rm, cp } from 'fs/promises';
+import { mkdir, rm, cp, lstat } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 
