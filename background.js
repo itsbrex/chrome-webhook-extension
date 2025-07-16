@@ -541,7 +541,10 @@ async function sendLinkedInDataToWebhooks(linkedinData) {
     }
     
     showNotification('📤 LinkedIn Parser', `LinkedIn data queued for ${targetWebhooks.length} webhook(s)`, true);
-  });
+  } catch (error) {
+    console.error('Error sending LinkedIn data to webhooks:', error);
+    showNotification('❌ LinkedIn Parser', `Error sending to webhooks: ${error.message}`, false);
+  }
 }
 
 function generateSessionId() {
