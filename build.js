@@ -36,7 +36,8 @@ async function build() {
       const destPath = path.join(DIST_DIR, includePath);
       
       if (existsSync(sourcePath)) {
-        if (sourcePath.endsWith('/')) {
+        const stats = await lstat(sourcePath);
+        if (stats.isDirectory()) {
           // Directory - copy recursively
           await cp(sourcePath, destPath, { recursive: true });
           console.log(`📂 Copied directory: ${sourcePath} → ${destPath}`);
