@@ -36,7 +36,8 @@ class LinkedInMutualConnectionsParser {
         educationSection: '.pv-profile-section.education-section, .pvs-list__container',
         skillsSection: '.pv-skill-categories-section, .pvs-list__container',
         connectionsCount: '.pv-top-card--list-bullet .t-black--light span:contains("connection"), .pv-top-card--list-bullet a[href*="overlay/connections"]',
-        followersCount: '.pv-top-card--list-bullet .t-black--light span:contains("follower")',
+        // Select all relevant spans, filter by text content "follower" in code
+        followersCount: '.pv-top-card--list-bullet .t-black--light span',
         mutualConnectionsText: '.pv-top-card--list-bullet a[href*="facetConnectionOf"], .pv-top-card--list-bullet a[href*="mutual"]'
       },
       maxPagesPerSession: 50,
