@@ -133,7 +133,7 @@ The test suite covers:
 - ✅ Two-click delete confirmation
 - ✅ Webhook selection for LinkedIn data
 
-#### LinkedIn Parser (`contentScripts/pageHelper.js`)
+#### LinkedIn Parser (`src/contentScripts/pageHelper.js`)
 - ✅ Profile page parsing (name, title, location, image)
 - ✅ Experience extraction (title, company, duration, location)
 - ✅ Education extraction (school, degree, field, duration)

@@ -20,7 +20,7 @@ export default defineConfig({
         'node_modules/',
         '__tests__/',
         '*.config.js',
-        'build.js',
+        'scripts/',
       ],
     },
     mockReset: true,

@@ -49,9 +49,10 @@ This project isn't merely a functional tool; it's a personal statement and a bea
 
 ### From Source
 1. Clone the repository or download the ZIP file
-2. Open Chrome and go to `chrome://extensions/`
-3. Enable **Developer Mode** at the top right
-4. Click **"Load unpacked"** and select the extension directory where the `manifest.json` file is located
+2. Build the extension (see Development section) or use the `src/` directory directly
+3. Open Chrome and go to `chrome://extensions/`
+4. Enable **Developer Mode** at the top right
+5. Click **"Load unpacked"** and select the `src/` directory (for development) or `dist/` directory (after building)
 
 ### Requirements
 - Chrome browser with Manifest V3 support
@@ -183,9 +184,10 @@ Configure rate limits per webhook to prevent API abuse:
 ## Architecture
 
 ### Core Components
-- **manifest.json**: Chrome extension manifest (Manifest V3)
-- **background.js**: Service worker handling context menus, webhook management, and queue processing
-- **popup.html/popup.js**: Modern tabbed UI for webhook registration and settings management
+- **src/manifest.json**: Chrome extension manifest (Manifest V3)
+- **src/background.js**: Service worker handling context menus, webhook management, and queue processing
+- **src/popup.html/popup.js**: Modern tabbed UI for webhook registration and settings management
+- **src/contentScripts/pageHelper.js**: LinkedIn profile parsing content script
 - **Chrome Storage**: Local storage for webhook persistence and settings
 
 ### Queue System
@@ -199,11 +201,17 @@ Configure rate limits per webhook to prevent API abuse:
 ### File Structure
 ```
 chrome-webhook-extension/
-├── manifest.json          # Extension manifest
-├── background.js          # Service worker (queue system, context menus)
-├── popup.html            # Modern tabbed UI
-├── popup.js              # UI logic and form handling
-├── images/               # Extension icons
+├── src/                  # Extension source code
+│   ├── manifest.json     # Extension manifest
+│   ├── background.js     # Service worker (queue system, context menus)
+│   ├── popup.html        # Modern tabbed UI
+│   ├── popup.js          # UI logic and form handling
+│   ├── images/           # Extension icons
+│   └── contentScripts/   # Content scripts
+│       └── pageHelper.js # LinkedIn profile parsing
+├── scripts/              # Build and utility scripts
+│   └── build.js          # Bun build script
+├── __tests__/            # Test suite
 ├── CLAUDE.md            # Development guide
 └── README.md            # This file
 ```
@@ -228,9 +236,11 @@ Contributions are welcome! Please:
 
 ### Development Setup
 1. Clone the repository
-2. Load unpacked extension in Chrome
-3. Make changes and reload extension
+2. Load unpacked extension in Chrome (use `src/` directory)
+3. Make changes to files in `src/` and reload extension
 4. Test across different webpage contexts
+5. Run tests with `bun test:run`
+6. Build for distribution with `bun run build`
 
 ## Changelog
 

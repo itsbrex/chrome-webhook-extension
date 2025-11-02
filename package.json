@@ -3,7 +3,7 @@
   "version": "2.0.0",
   "description": "A Chrome extension that allows you to send data to webhooks.",
   "scripts": {
-    "build": "bun run build.js",
+    "build": "bun run scripts/build.js",
     "prepare": "husky",
     "test": "vitest",
     "test:ui": "vitest --ui",

@@ -18,10 +18,10 @@ This is a Chrome extension (Manifest V3) that allows users to manage webhooks an
 
 ### Core Components
 
-- **manifest.json**: Chrome extension manifest defining permissions, background scripts, and UI components
-- **background.js**: Service worker handling context menu creation, webhook management, HTTP requests, and LinkedIn parsing coordination
-- **popup.html/popup.js**: Extension popup UI for webhook registration and management
-- **contentScripts/pageHelper.js**: LinkedIn-specific content script for profile data extraction
+- **src/manifest.json**: Chrome extension manifest defining permissions, background scripts, and UI components
+- **src/background.js**: Service worker handling context menu creation, webhook management, HTTP requests, and LinkedIn parsing coordination
+- **src/popup.html/popup.js**: Extension popup UI for webhook registration and management
+- **src/contentScripts/pageHelper.js**: LinkedIn-specific content script for profile data extraction
 - **Chrome Storage**: Local storage for webhook persistence and settings
 
 ### Key Features
@@ -115,20 +115,20 @@ bun test networkSafety
 
 ### Key Files to Modify
 
-- **background.js:1-50**: Queue initialization and management
-- **background.js:74-115**: Queue processing with rate limiting
-- **background.js:230-450**: Data extraction and webhook sending (including LinkedIn)
-- **background.js:495-560**: Queue notifications system
-- **contentScripts/pageHelper.js**: LinkedIn profile parsing logic
+- **src/background.js:1-50**: Queue initialization and management
+- **src/background.js:74-115**: Queue processing with rate limiting
+- **src/background.js:230-450**: Data extraction and webhook sending (including LinkedIn)
+- **src/background.js:495-560**: Queue notifications system
+- **src/contentScripts/pageHelper.js**: LinkedIn profile parsing logic
   - Experience extraction (lines ~50-150)
   - Education extraction (lines ~150-250)
   - Skills extraction (lines ~250-350)
   - Mutual connections parsing (lines ~350-600)
-- **popup.js:51-118**: Webhook card creation and rendering
-- **popup.js:324-358**: Form toggle functionality
-- **popup.js:405-413**: Form submission and settings handling
-- **popup.html:31-420**: Modern CSS design system and layout
-- **manifest.json:6-14**: Permissions and host permissions
+- **src/popup.js:51-118**: Webhook card creation and rendering
+- **src/popup.js:324-358**: Form toggle functionality
+- **src/popup.js:405-413**: Form submission and settings handling
+- **src/popup.html:31-420**: Modern CSS design system and layout
+- **src/manifest.json:6-14**: Permissions and host permissions
 
 ### Storage Structure
 
@@ -239,14 +239,14 @@ Webhooks and settings are stored in Chrome local storage:
 
 ### Refactoring (commit: f2d3aa3)
 - **RENAMED**: `linkedinParser.js` → `pageHelper.js` for more generic naming
-- **UPDATED**: manifest.json content_scripts reference
+- **UPDATED**: src/manifest.json content_scripts reference
 - **UPDATED**: All documentation references to use new pageHelper naming
 - **NOTE**: Pure refactoring with no functional changes
 
 ### LinkedIn Integration (copilot/fix-6 branch)
 - **NEW**: Added comprehensive LinkedIn profile parsing capabilities
-- **NEW**: Created `contentScripts/pageHelper.js` for specialized LinkedIn data extraction
-- **ENHANCED**: Background.js now detects LinkedIn profiles and uses specialized extraction
+- **NEW**: Created `src/contentScripts/pageHelper.js` for specialized LinkedIn data extraction
+- **ENHANCED**: src/background.js now detects LinkedIn profiles and uses specialized extraction
 - **ENHANCED**: Support for bi-directional mutual connections parsing
 - **ENHANCED**: Configurable auto-parsing settings for LinkedIn profiles
 - **FIXED**: Invalid CSS selector issues in LinkedIn parser
@@ -272,8 +272,21 @@ Webhooks and settings are stored in Chrome local storage:
 
 ```
 chrome-webhook-extension/
-├── contentScripts/
-│   └── pageHelper.js           # LinkedIn profile parsing (renamed from linkedinParser.js)
+├── src/                        # Extension source code
+│   ├── background.js           # Service worker
+│   ├── popup.html              # Extension UI
+│   ├── popup.js                # UI logic
+│   ├── manifest.json           # Extension manifest
+│   ├── images/                 # Extension icons
+│   │   ├── icon128.png
+│   │   ├── icon16.png
+│   │   └── icon48.png
+│   └── contentScripts/
+│       └── pageHelper.js       # LinkedIn profile parsing
+├── scripts/                    # Build and utility scripts
+│   ├── build.js                # Bun build script
+│   └── gas/                    # Google Apps Script utilities
+│       └── WorkExperience.js   # LinkedIn data formatter for Google Sheets
 ├── __tests__/                  # Test suite (NEW)
 │   ├── helpers/               # Test utilities and mocks
 │   │   ├── chromeMock.js     # Chrome API mock (228 lines)
@@ -297,13 +310,12 @@ chrome-webhook-extension/
 │   ├── git_conventions.mdc   # Git standards (524 lines)
 │   ├── self_improve.mdc      # AI development rules (72 lines)
 │   └── ultracite.mdc         # Linting rules
-├── background.js             # Service worker
-├── popup.html/js             # Extension UI
-├── manifest.json             # Extension manifest
-├── vitest.config.js          # Test framework config (NEW)
+├── dist/                     # Build output (gitignored)
+├── vitest.config.js          # Test framework config
 ├── TEST_SUMMARY.md          # Test statistics (244 lines)
 ├── SAFETY_TESTS.md          # Quick safety ref (257 lines)
-└── package.json             # Dependencies + test scripts
+├── package.json             # Dependencies + test scripts
+└── README.md                # User documentation
 ```
 
 ## Future Development Ideas
@@ -361,7 +373,7 @@ chrome-webhook-extension/
 
 ### LinkedIn Profile Parsing
 - LinkedIn profiles are auto-detected by URL pattern: `https://www.linkedin.com/in/*`
-- Content script is injected on LinkedIn pages only (see manifest.json)
+- Content script is injected on LinkedIn pages only (see src/manifest.json)
 - Profile data is extracted client-side for privacy
 - Bi-directional parsing creates payloads for both profile→connection and connection→profile relationships
 
