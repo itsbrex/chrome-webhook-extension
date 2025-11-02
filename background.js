@@ -674,10 +674,9 @@ async function handleLinkedInMutualConnectionsAuto(tabId, profileData) {
           });
           
           if (parseResult.success) {
-            // Send each payload separately
-            for (const payload of parseResult.data) {
-              await sendLinkedInDataToWebhooks(payload);
-            }
+            // Send each payload concurrently
+            await Promise.all(parseResult.data.map(payload => sendLinkedInDataToWebhooks(payload)));
+            
             showNotification('✅ LinkedIn Auto Parser', `Auto-parsed ${parseResult.data.length} bi-directional connections`, true);
           }
         } else {
