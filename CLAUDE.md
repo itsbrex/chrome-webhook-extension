@@ -210,7 +210,32 @@ Webhooks and settings are stored in Chrome local storage:
 - Settings management interface
 - Author attribution with external link
 
-## Recent Updates (Updated: 2025-11-01)
+## Recent Updates (Updated: 2025-11-02)
+
+### Repository Structure Reorganization (commit: 34b09b3)
+- **RESTRUCTURED**: Moved all extension source code to `src/` directory
+  - Extension files: `src/background.js`, `src/popup.js`, `src/popup.html`, `src/manifest.json`
+  - Content scripts: `src/contentScripts/pageHelper.js`
+  - Extension icons: `src/images/*.png`
+- **MOVED**: Build script to `scripts/build.js` with updated paths
+- **UPDATED**: All documentation (CLAUDE.md, README.md) to reflect new paths
+- **UPDATED**: Vitest configuration to handle new source paths
+- **UPDATED**: Package.json build script to reference new location
+- **NOTE**: Clean separation between source (`src/`), scripts (`scripts/`), and tests (`__tests__/`)
+
+### Itty Library Development Rules (commit: cab05eb)
+- **NEW**: Added comprehensive Cursor rules for itty libraries:
+  - `itty-chroma.mdc`: Vector database integration patterns (416 lines)
+  - `itty-fetcher.mdc`: HTTP client utilities and best practices (726 lines)
+  - `itty-sockets.mdc`: WebSocket handling and real-time communication (904 lines)
+- **TOTAL**: 2,046 lines of itty library development guidelines
+- **PURPOSE**: Future-proof the codebase for potential itty-router integration
+
+### Test Configuration Improvements (commit: e1bf494)
+- **CONFIGURED**: Vitest pool settings for better test isolation
+- **CONFIGURED**: Test timeout settings to prevent flaky tests
+- **UPDATED**: Claude Code settings for MCP server management
+- **DISABLED**: shadcn MCP server (not needed for this project)
 
 ### Test Suite Implementation (commit: c085f4f)
 - **NEW**: Comprehensive test suite with 151 tests (100% passing)
@@ -260,6 +285,9 @@ Webhooks and settings are stored in Chrome local storage:
   - `git_conventions.mdc`: Git workflow standards (524 lines)
   - `self_improve.mdc`: AI-assisted development rules (72 lines)
   - `ultracite.mdc`: Ultracite formatting/linting rules (updated)
+  - `itty-chroma.mdc`: Itty-chroma vector DB patterns (416 lines)
+  - `itty-fetcher.mdc`: Itty-fetcher HTTP utilities (726 lines)
+  - `itty-sockets.mdc`: Itty-sockets WebSocket patterns (904 lines)
 - **NEW**: Pre-commit hooks with automatic code formatting via Husky
 - **NEW**: Enhanced `.claude/CLAUDE.md` with Ultracite rules integration
 - **UPDATED**: Biome configuration for code quality
@@ -267,6 +295,7 @@ Webhooks and settings are stored in Chrome local storage:
 
 ### Breaking Changes
 - None - all changes are backward compatible
+- **Note**: File paths have changed due to `src/` directory reorganization, but functionality remains identical
 
 ## File Structure
 
