@@ -1,0 +1,416 @@
+---
+description: itty-chroma - Powerful browser console styling library under 500 bytes
+globs: "**/*.{js,ts,jsx,tsx}"
+alwaysApply: false
+---
+
+# itty-chroma Console Styling Guide
+
+## Overview
+
+itty-chroma is a tiny (< 500 bytes) library for powerful browser console styling. It uses an infinite proxy chain pattern to compose CSS styles before outputting to console.log/warn/error.
+
+**Installation:**
+```bash
+bun add itty-chroma
+# or npm install itty-chroma
+```
+
+**Import:**
+```javascript
+import { chroma } from 'itty-chroma'
+```
+
+## Core Principles
+
+- **Chain-based API**: Build styles by chaining properties
+- **Compose segments**: Save and reuse style segments
+- **Browser-only**: Designed specifically for browser DevTools
+- **Infinite combinations**: Mix any valid CSS properties
+- **Readable code**: API prioritizes clarity and ease of use
+
+## Basic Usage Patterns
+
+### 1. Direct Logging with Styles
+
+```javascript
+// ✅ Good: Simple single-style logging
+chroma.red.log('Error message')
+chroma.bold.green.log('Success!')
+chroma.italic.blue.log('Information')
+
+// ✅ Good: Any valid CSS color name works (case-insensitive)
+chroma.salmon.log('Salmon colored text')
+chroma.cornflowerBlue.log('Cornflower blue text')
+
+// ❌ Bad: Don't use plain console.log when styling is desired
+console.log('This could have been styled')
+```
+
+### 2. Composing Multiple Segments
+
+```javascript
+// ✅ Good: Compose multiple styled segments in one log
+chroma.log(
+  chroma.green,
+  'This is green,',
+  chroma.blue.underline.bold,
+  'now blue and styled'
+)
+
+// ✅ Good: Clear style changes with chroma.none
+chroma.log(
+  chroma.red('red text'),
+  'still red',
+  chroma.none,
+  'back to default'
+)
+
+// ❌ Bad: Multiple separate logs for related info
+chroma.green.log('Part 1')
+chroma.blue.log('Part 2')  // Use composition instead
+```
+
+### 3. Creating Reusable Style Segments
+
+```javascript
+// ✅ Good: Define reusable style segments
+const errorStyle = chroma.bold.red
+const successStyle = chroma.green
+const infoStyle = chroma.italic.blue
+
+chroma.log(
+  successStyle,
+  'Operation completed successfully'
+)
+
+// ✅ Good: Create custom loggers with saved .log
+const debugLogger = chroma.color('purple').italic.log
+const warnLogger = chroma.bold.color('orange').warn
+
+debugLogger('Debug information here')
+warnLogger('Warning: check this')
+
+// ✅ Good: Compose complex badge-style loggers
+const badge = chroma
+  .bg('blue')
+  .white
+  .bold
+  .padding('2px 5px')
+  .radius('0.3rem')
+
+chroma.log(badge('INFO'), chroma.italic, 'Additional message')
+
+// ❌ Bad: Repeating style chains
+chroma.bold.red.log('Error 1')
+chroma.bold.red.log('Error 2')  // Define errorStyle instead
+```
+
+### 4. Advanced CSS Styling
+
+```javascript
+// ✅ Good: Use .color() for complex color values
+chroma.color('rgba(255, 0, 100, 0.5)').log('Semi-transparent')
+chroma.color('#f0c').log('Hex colors work')
+
+// ✅ Good: Use .bg() for backgrounds
+chroma.bg('linear-gradient(90deg, red, blue)').white.log('Gradient!')
+chroma.bg('lightgray').color('black').log('Contrast')
+
+// ✅ Good: Use .style() for custom CSS
+chroma
+  .size('1.5em')
+  .style('text-transform:uppercase; text-shadow:0 0 0.5em cyan;')
+  .log('Custom styled text')
+
+// ✅ Good: Combine properties for badges/labels
+chroma
+  .bg('green')
+  .white
+  .bold
+  .padding('3px 8px')
+  .radius('0.5rem')
+  .log('SUCCESS')
+
+// ❌ Bad: Don't use inline styles when chroma properties exist
+chroma.style('color:red;font-weight:bold').log('text')
+// Use: chroma.red.bold.log('text') instead
+```
+
+## Common Use Cases
+
+### Development Logging System
+
+```javascript
+// ✅ Good: Create a consistent logging system
+const createLogger = (type = 'log', label, badgeColor = 'grey', textColor = 'grey') =>
+  (...args) =>
+    chroma[type](
+      chroma.bg(badgeColor).white.bold.padding('2px 5px').radius('0.2rem')(label),
+      chroma.color(textColor).italic,
+      ...args,
+    )
+
+// Define log levels
+const info = createLogger('log', 'INFO', 'blue', 'blue')
+const success = createLogger('log', 'SUCCESS', 'green', 'green')
+const warning = createLogger('warn', 'WARNING', 'orange', 'brown')
+const error = createLogger('error', 'ERROR', 'red', 'red')
+const debug = createLogger('log', 'DEBUG', 'purple', 'purple')
+
+// Usage
+info('Application started')
+success('Data loaded successfully')
+warning('Deprecated API usage detected')
+error('Failed to connect to server')
+debug('Current state:', { user: 'john' })
+```
+
+### Feature-Based Logging
+
+```javascript
+// ✅ Good: Create feature-specific loggers
+const authLogger = chroma.bg('indigo').white.padding('2px 6px').radius('3px').log
+const apiLogger = chroma.bg('teal').white.padding('2px 6px').radius('3px').log
+const dbLogger = chroma.bg('brown').white.padding('2px 6px').radius('3px').log
+
+authLogger('User logged in:', username)
+apiLogger('API call:', endpoint, response)
+dbLogger('Query executed:', query, results)
+```
+
+### Performance Monitoring
+
+```javascript
+// ✅ Good: Styled performance logs
+const perfStart = chroma.color('cyan').bold.log
+const perfEnd = chroma.color('green').bold.log
+const perfSlow = chroma.color('red').bold.warn
+
+const startTime = performance.now()
+perfStart('⏱️ Starting operation...')
+
+// ... operation ...
+
+const duration = performance.now() - startTime
+if (duration > 1000) {
+  perfSlow(`⚠️ Slow operation: ${duration.toFixed(2)}ms`)
+} else {
+  perfEnd(`✅ Operation completed: ${duration.toFixed(2)}ms`)
+}
+```
+
+### Data Inspection
+
+```javascript
+// ✅ Good: Highlight important data in logs
+const inspectData = (label, data) => {
+  chroma.log(
+    chroma.bg('navy').white.bold.padding('2px 5px')(label),
+    chroma.italic.color('gray'),
+    JSON.stringify(data, null, 2)
+  )
+}
+
+inspectData('User Data', { id: 1, name: 'John' })
+inspectData('API Response', { status: 200, data: [...] })
+```
+
+## API Reference
+
+### Output Methods
+- **`.log`**: Output to console.log
+- **`.warn`**: Output to console.warn
+- **`.error`**: Output to console.error
+
+### Text Styling
+- **`.bold`**: Bold text
+- **`.italic`**: Italic text
+- **`.underline`**: Underlined text
+- **`.strike`**: Strikethrough text
+
+### Color Properties
+- **`.{colorName}`**: Any valid CSS color name (e.g., `.red`, `.blue`, `.salmon`)
+- **`.color(value)`**: Set text color with any CSS color value
+- **`.bg(value)`**: Set background with any CSS background value
+
+### Typography
+- **`.font(value)`**: Set font-family
+- **`.size(value)`**: Set font-size
+
+### Layout (for badges/labels)
+- **`.padding(value)`**: Set padding
+- **`.radius(value)`**: Set border-radius
+- **`.border(value)`**: Set border
+
+### Advanced
+- **`.style(value)`**: Custom CSS string for any valid CSS
+- **`.none`**: Clear all styling (also `.clear`, or any invalid color name)
+
+## Best Practices
+
+### DO ✅
+
+- **Use descriptive style segments**: Create named segments for clarity
+  ```javascript
+  const errorHeader = chroma.bg('red').white.bold.padding('2px 5px')
+  const warningText = chroma.color('orange').italic
+  ```
+
+- **Compose for readability**: Break complex logs into segments
+  ```javascript
+  chroma.log(
+    badge('INFO'),
+    chroma.blue,
+    'Message here'
+  )
+  ```
+
+- **Create project-wide logger utilities**: Standardize logging across codebase
+  ```javascript
+  // logger.js
+  export const log = {
+    info: createLogger('log', 'INFO', 'blue'),
+    error: createLogger('error', 'ERROR', 'red'),
+    // ...
+  }
+  ```
+
+- **Use for development debugging**: Leverage styling to quickly identify log sources
+  ```javascript
+  const componentLogger = chroma.bg('purple').white.padding('2px 5px').log
+  componentLogger('Component rendered:', props)
+  ```
+
+- **Leverage color psychology**: Use appropriate colors for log types
+  - Red: Errors, critical issues
+  - Orange/Yellow: Warnings
+  - Green: Success, completion
+  - Blue: Information
+  - Purple/Gray: Debug, trace
+
+### DON'T ❌
+
+- **Don't over-style simple logs**: Keep it readable
+  ```javascript
+  // ❌ Bad: Too much styling
+  chroma
+    .bold.italic.underline
+    .size('2em')
+    .color('red')
+    .bg('yellow')
+    .style('text-shadow:0 0 1em blue')
+    .log('Too much!')
+  
+  // ✅ Good: Simple and clear
+  chroma.red.bold.log('Error occurred')
+  ```
+
+- **Don't use in production builds**: Strip console logs or use conditionally
+  ```javascript
+  // ✅ Good: Conditional logging
+  if (import.meta.env.DEV) {
+    chroma.blue.log('Development info')
+  }
+  ```
+
+- **Don't nest chroma calls unnecessarily**
+  ```javascript
+  // ❌ Bad: Nested calls
+  chroma.log(chroma.red.log('text'))
+  
+  // ✅ Good: Single call
+  chroma.red.log('text')
+  ```
+
+- **Don't ignore contrast and readability**
+  ```javascript
+  // ❌ Bad: Poor contrast
+  chroma.bg('yellow').color('white').log('Hard to read')
+  
+  // ✅ Good: High contrast
+  chroma.bg('navy').color('white').log('Easy to read')
+  ```
+
+## Integration Examples
+
+### With Chrome Extensions
+
+```javascript
+// src/background.js
+import { chroma } from 'itty-chroma'
+
+const bgLogger = chroma.bg('darkblue').white.bold.padding('2px 5px').log
+
+chrome.runtime.onInstalled.addListener(() => {
+  bgLogger('Extension installed')
+})
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  chroma.log(
+    chroma.bg('green').white.padding('2px 5px')('MESSAGE'),
+    chroma.italic.color('gray'),
+    message
+  )
+})
+```
+
+### With Error Handling
+
+```javascript
+// ✅ Good: Styled error handling
+try {
+  await riskyOperation()
+  chroma.green.bold.log('✅ Operation successful')
+} catch (error) {
+  chroma.log(
+    chroma.bg('red').white.bold.padding('2px 5px')('ERROR'),
+    chroma.red,
+    error.message,
+    chroma.none,
+    '\nStack:',
+    error.stack
+  )
+}
+```
+
+### With Testing/Debugging
+
+```javascript
+// ✅ Good: Debug-specific styling
+const testLogger = chroma.bg('purple').white.bold.padding('2px 5px').log
+
+describe('User authentication', () => {
+  test('should login successfully', () => {
+    testLogger('Testing login...')
+    const result = login(credentials)
+    testLogger('Result:', result)
+    expect(result.success).toBe(true)
+  })
+})
+```
+
+## Browser Compatibility
+
+- **Supported**: All modern browsers (Chrome, Firefox, Safari, Edge)
+- **Browser-only**: Not for Node.js (console styling works differently)
+- **DevTools required**: Styling only visible in browser DevTools console
+
+## Performance Considerations
+
+- **Tiny footprint**: < 500 bytes gzipped
+- **No runtime overhead**: Styles are compiled into CSS strings
+- **Tree-shakeable**: Only import what you use
+- **Safe for production**: But consider stripping console logs in builds
+
+## Related Patterns
+
+- Use with [vite-plugin-strip-console](https://github.com/vitejs/vite) for production builds
+- Combine with Chrome DevTools filtering for advanced debugging
+- Integrate with logging frameworks for enterprise applications
+
+## References
+
+- [itty-chroma GitHub](https://github.com/kwhitley/itty-chroma)
+- [MDN Console API](https://developer.mozilla.org/en-US/docs/Web/API/Console)
+- [Chrome DevTools Console](https://developer.chrome.com/docs/devtools/console/)

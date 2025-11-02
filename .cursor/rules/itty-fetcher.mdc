@@ -1,0 +1,726 @@
+---
+description: itty-fetcher - Elegant fetch wrapper with powerful features in ~650 bytes
+globs: "**/*.{js,ts,jsx,tsx}"
+alwaysApply: false
+---
+
+# itty-fetcher HTTP Client Guide
+
+## Overview
+
+itty-fetcher is a tiny (~650 bytes) but powerful fetch wrapper that provides an elegant API for HTTP requests with automatic error handling, response parsing, and flexible configuration.
+
+**Installation:**
+```bash
+bun add itty-fetcher
+# or npm install itty-fetcher
+```
+
+**Import:**
+```javascript
+import { fetcher } from 'itty-fetcher'
+```
+
+## Core Principles
+
+- **Automatic error handling**: Unlike native fetch, throws on HTTP errors
+- **Flexible arguments**: Multiple ways to call each method
+- **Response parsing**: Automatic JSON parsing with easy overrides
+- **Composable configuration**: Set defaults, override per-request
+- **TypeScript-first**: Excellent type inference and generics support
+
+## Basic Usage Patterns
+
+### 1. Simple Requests
+
+```javascript
+// ✅ Good: Clean one-line requests
+const users = await fetcher().get('https://api.example.com/users')
+const user = await fetcher().post('https://api.example.com/users', { name: 'Alice' })
+
+// ✅ Good: Reusable API endpoint
+const api = fetcher('https://api.example.com')
+const users = await api.get('/users')
+const newUser = await api.post('/users', { name: 'Bob' })
+
+// ❌ Bad: Repeating base URL
+await fetcher().get('https://api.example.com/users')
+await fetcher().get('https://api.example.com/posts')
+// Create a reusable fetcher instead
+```
+
+### 2. Configuration at Multiple Levels
+
+```javascript
+// ✅ Good: Configure at fetcher level
+const api = fetcher('https://api.example.com', {
+  headers: {
+    'Authorization': 'Bearer token',
+    'Accept': 'application/json'
+  },
+  query: { version: 'v2' }
+})
+
+// ✅ Good: Override per request (merges intelligently)
+await api.get('/users', {
+  headers: { 'Accept': 'text/xml' },  // Overrides Accept
+  query: { limit: 10 }                // Merges with base query
+})
+// Final: GET /users?version=v2&limit=10 with Accept: text/xml
+
+// ❌ Bad: Repeating configuration
+await fetcher().get('/users', { headers: { 'Auth': 'token' } })
+await fetcher().get('/posts', { headers: { 'Auth': 'token' } })
+// Define api with headers instead
+```
+
+### 3. Request Payloads
+
+```javascript
+// ✅ Good: Automatic JSON encoding
+await api.post('/users', { name: 'Alice', email: 'alice@example.com' })
+// Automatically stringified and Content-Type set to application/json
+
+// ✅ Good: Send raw data
+await api.post('/text', 'raw string data', { encode: false })
+
+// ✅ Good: Various payload patterns
+await api.put('/users/1', { name: 'Bob' })              // with URL and payload
+await api.patch({ email: 'new@example.com' })          // uses base URL
+await api.delete('/users/1', { reason: 'closed' })     // DELETE with payload
+
+// ❌ Bad: Manual JSON stringification
+await api.post('/users', JSON.stringify({ name: 'Alice' }))
+// itty-fetcher does this automatically
+```
+
+### 4. Response Parsing
+
+```javascript
+// ✅ Good: Default JSON parsing
+const users = await api.get('/users')
+// Automatically parsed as JSON
+
+// ✅ Good: Override parsing per request
+const text = await api.get('/file.txt', { parse: 'text' })
+const blob = await api.get('/image.jpg', { parse: 'blob' })
+const buffer = await api.get('/binary', { parse: 'arrayBuffer' })
+
+// ✅ Good: Get raw Response object
+const response = await api.get('/data', { parse: false })
+console.log(response.status, response.headers)
+const data = await response.json()
+
+// ✅ Good: Configure default parsing
+const textApi = fetcher('https://api.example.com', { parse: 'text' })
+const html = await textApi.get('/page.html')
+
+// ❌ Bad: Parsing when not needed
+const response = await api.get('/users')
+const data = await response.json()  // Already parsed!
+```
+
+## Error Handling
+
+### 1. Traditional Try/Catch
+
+```javascript
+// ✅ Good: Handle specific error statuses
+try {
+  const user = await api.get('/users/123')
+  console.log('User found:', user)
+} catch (error) {
+  if (error.status === 404) {
+    console.log('User not found')
+    return null
+  }
+  
+  if (error.status >= 500) {
+    console.error('Server error:', error.message)
+    // Log to monitoring service
+  }
+  
+  throw error  // Re-throw unexpected errors
+}
+
+// ✅ Good: Access JSON error body properties
+try {
+  await api.post('/users', invalidData)
+} catch (error) {
+  console.log(error.status)    // 400
+  console.log(error.message)   // "Bad Request"
+  console.log(error.errors)    // Server's validation errors
+  console.log(error.field)     // Specific field that failed
+}
+
+// ❌ Bad: Generic error handling
+try {
+  await api.get('/users/123')
+} catch (error) {
+  console.log('Error occurred')  // Too vague
+}
+```
+
+### 2. Promise Catch Chains
+
+```javascript
+// ✅ Good: Graceful fallbacks
+const user = await api.get('/users/123')
+  .catch(error => {
+    if (error.status === 404) return null
+    throw error
+  })
+
+// ✅ Good: Transform errors
+const result = await api.get('/data')
+  .catch(error => ({ 
+    error: true, 
+    status: error.status,
+    message: error.message 
+  }))
+
+if (result.error) {
+  console.log('Request failed:', result.message)
+}
+
+// ❌ Bad: Swallowing all errors
+const data = await api.get('/users').catch(() => [])
+// At least log the error
+```
+
+### 3. Tuple Mode (Go-style)
+
+```javascript
+// ✅ Good: Error handling without try/catch
+const api = fetcher({ array: true, base: 'https://api.example.com' })
+
+const [error, users] = await api.get('/users')
+if (error) {
+  console.log('Failed:', error.status, error.message)
+  return
+}
+
+console.log('Success:', users)
+
+// ✅ Good: Clean control flow
+const [getUserError, user] = await api.get(`/users/${id}`)
+if (getUserError) return handleError(getUserError)
+
+const [updateError, updated] = await api.patch(`/users/${id}`, updates)
+if (updateError) return handleError(updateError)
+
+return updated
+
+// ✅ Good: Switch on error status
+const [error, data] = await api.get('/resource')
+if (error) {
+  switch (error.status) {
+    case 404:
+      return handleNotFound()
+    case 403:
+      return handleForbidden()
+    default:
+      return handleUnknownError(error)
+  }
+}
+```
+
+## Advanced Patterns
+
+### 1. Response Interceptors
+
+```javascript
+// ✅ Good: Transform all responses
+const api = fetcher('https://api.example.com', {
+  after: [
+    // Add timestamp to all responses
+    async (response) => ({
+      ...response,
+      timestamp: Date.now()
+    }),
+    
+    // Extract data from wrapper (many APIs wrap responses)
+    async (response) => response.data || response,
+    
+    // Log responses (return undefined = no transformation)
+    async (response) => {
+      console.log('API Response:', response)
+      // Returning nothing leaves response unchanged
+    }
+  ]
+})
+
+// ✅ Good: Conditional transformations
+const api = fetcher({
+  after: [
+    async (response) => {
+      // Only transform paginated responses
+      if (response.pagination) {
+        return {
+          items: response.data,
+          meta: response.pagination
+        }
+      }
+      return response
+    }
+  ]
+})
+
+// ❌ Bad: Mutating response objects
+const api = fetcher({
+  after: [
+    async (response) => {
+      response.timestamp = Date.now()  // Mutation
+      // Return a new object instead
+    }
+  ]
+})
+```
+
+### 2. Custom Fetch Implementation
+
+```javascript
+// ✅ Good: Use in Node.js with custom fetch
+import fetch from 'node-fetch'
+
+const api = fetcher({
+  fetch,
+  base: 'https://api.example.com'
+})
+
+// ✅ Good: Mock fetch for testing
+const mockFetch = async (url, options) => {
+  return new Response(JSON.stringify({ mock: true }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' }
+  })
+}
+
+const testApi = fetcher({ fetch: mockFetch })
+
+// ✅ Good: Add request logging
+const loggingFetch = async (url, options) => {
+  console.log('Request:', options.method, url)
+  const response = await fetch(url, options)
+  console.log('Response:', response.status)
+  return response
+}
+
+const api = fetcher({ fetch: loggingFetch })
+```
+
+### 3. Query Parameters
+
+```javascript
+// ✅ Good: Base query parameters
+const api = fetcher('https://api.example.com', {
+  query: {
+    apiKey: 'secret',
+    format: 'json'
+  }
+})
+
+await api.get('/users')  // GET /users?apiKey=secret&format=json
+
+// ✅ Good: Merge query parameters
+await api.get('/users', {
+  query: { 
+    page: 1, 
+    limit: 10 
+  }
+})
+// GET /users?apiKey=secret&format=json&page=1&limit=10
+
+// ✅ Good: Dynamic query params
+const searchApi = (term) => api.get('/search', {
+  query: { 
+    q: term,
+    limit: 20 
+  }
+})
+
+// ❌ Bad: Manual query string construction
+await api.get(`/users?page=1&limit=10`)
+// Use query option instead for proper encoding
+```
+
+## TypeScript Patterns
+
+### 1. Type Definitions
+
+```typescript
+// ✅ Good: Define your API types
+type User = {
+  id: number
+  name: string
+  email: string
+  createdAt: string
+}
+
+type CreateUser = {
+  name: string
+  email: string
+}
+
+type UpdateUser = {
+  name?: string
+  email?: string
+}
+
+type APIResponse<T> = {
+  data: T
+  meta: {
+    total: number
+    page: number
+  }
+}
+```
+
+### 2. Method-Level Generics
+
+```typescript
+// ✅ Good: Type individual requests
+const api = fetcher('https://api.example.com')
+
+const user = await api.get<User>('/users/1')
+// user is typed as User
+
+const newUser = await api.post<CreateUser, User>('/users', {
+  name: 'Alice',
+  email: 'alice@example.com'
+})
+// Payload validated as CreateUser, result typed as User
+
+const users = await api.get<APIResponse<User[]>>('/users')
+// Properly typed nested response
+
+// ❌ Bad: Not using types
+const user = await api.get('/users/1')
+// user is typed as any
+```
+
+### 3. Fetcher-Level Default Types
+
+```typescript
+// ✅ Good: Set default request/response types
+const api = fetcher<CreateUser, User>('https://api.example.com', {
+  headers: { 'Authorization': 'Bearer token' }
+})
+
+// Methods inherit defaults
+const user = await api.post('/users', {
+  name: 'Alice',
+  email: 'alice@example.com'
+})
+// Payload typed as CreateUser, result as User
+
+// Override when needed
+const users = await api.get<User[]>('/users')
+// Result typed as User[] instead of default User
+
+// ✅ Good: Type tuple mode
+const tupleApi = fetcher<CreateUser, User>({ 
+  array: true,
+  base: 'https://api.example.com'
+})
+
+const [error, user] = await tupleApi.get<User>('/users/1')
+// TypeScript knows: error is FetcherError | undefined, user is User | undefined
+```
+
+### 4. Typed API Client Class
+
+```typescript
+// ✅ Good: Type-safe API client wrapper
+class APIClient {
+  private fetcher: ReturnType<typeof fetcher>
+
+  constructor(baseURL: string, token?: string) {
+    this.fetcher = fetcher(baseURL, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    })
+  }
+
+  // User methods with explicit types
+  async getUser(id: number): Promise<User> {
+    return this.fetcher.get<User>(`/users/${id}`)
+  }
+
+  async createUser(data: CreateUser): Promise<User> {
+    return this.fetcher.post<CreateUser, User>('/users', data)
+  }
+
+  async updateUser(id: number, data: UpdateUser): Promise<User> {
+    return this.fetcher.patch<UpdateUser, User>(`/users/${id}`, data)
+  }
+
+  async deleteUser(id: number): Promise<void> {
+    await this.fetcher.delete(`/users/${id}`)
+  }
+
+  // Paginated methods
+  async getUsers(page = 1, limit = 10): Promise<APIResponse<User[]>> {
+    return this.fetcher.get<APIResponse<User[]>>('/users', {
+      query: { page, limit }
+    })
+  }
+}
+
+// Usage
+const api = new APIClient('https://api.example.com', 'token')
+const user = await api.getUser(1)  // Fully typed!
+```
+
+## Common Use Cases
+
+### 1. API Client with Authentication
+
+```javascript
+// ✅ Good: Centralized auth handling
+const createAuthenticatedAPI = (token) => {
+  return fetcher('https://api.example.com', {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    after: [
+      // Handle auth errors globally
+      async (response) => response
+    ]
+  })
+}
+
+const api = createAuthenticatedAPI(getToken())
+
+// Refresh token on 401
+try {
+  const data = await api.get('/protected')
+} catch (error) {
+  if (error.status === 401) {
+    const newToken = await refreshToken()
+    const newApi = createAuthenticatedAPI(newToken)
+    return await newApi.get('/protected')
+  }
+  throw error
+}
+```
+
+### 2. Multi-Environment Setup
+
+```javascript
+// ✅ Good: Environment-based configuration
+const createAPI = (env = 'production') => {
+  const baseURLs = {
+    development: 'http://localhost:3000',
+    staging: 'https://api-staging.example.com',
+    production: 'https://api.example.com'
+  }
+
+  return fetcher(baseURLs[env], {
+    headers: {
+      'User-Agent': `MyApp-${env}/1.0`
+    },
+    after: env !== 'production' ? [console.log] : []
+  })
+}
+
+const api = createAPI(import.meta.env.MODE)
+```
+
+### 3. Request/Response Logging
+
+```javascript
+// ✅ Good: Comprehensive logging
+const api = fetcher('https://api.example.com', {
+  fetch: async (url, options) => {
+    const startTime = performance.now()
+    
+    console.log('🔵 Request:', {
+      method: options.method,
+      url: url.toString(),
+      headers: Object.fromEntries(options.headers || [])
+    })
+
+    const response = await fetch(url, options)
+    const duration = performance.now() - startTime
+
+    console.log(response.ok ? '✅' : '❌', 'Response:', {
+      status: response.status,
+      duration: `${duration.toFixed(2)}ms`,
+      url: url.toString()
+    })
+
+    return response
+  }
+})
+```
+
+### 4. Retry Logic
+
+```javascript
+// ✅ Good: Implement retry for transient failures
+const fetchWithRetry = async (fn, retries = 3, delay = 1000) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn()
+    } catch (error) {
+      const isLastAttempt = i === retries - 1
+      const isRetriable = error.status >= 500 || error.status === 429
+
+      if (isLastAttempt || !isRetriable) {
+        throw error
+      }
+
+      console.log(`Retry ${i + 1}/${retries} after ${delay}ms`)
+      await new Promise(resolve => setTimeout(resolve, delay))
+      delay *= 2  // Exponential backoff
+    }
+  }
+}
+
+const api = fetcher('https://api.example.com')
+const data = await fetchWithRetry(() => api.get('/flaky-endpoint'))
+```
+
+### 5. Chrome Extension Integration
+
+```javascript
+// ✅ Good: Extension background script API
+// src/background.js
+import { fetcher } from 'itty-fetcher'
+
+const webhookAPI = fetcher({
+  after: [
+    // Transform webhook response
+    async (response) => ({
+      ...response,
+      timestamp: new Date().toISOString()
+    })
+  ],
+  array: false  // Throw on errors for easier debugging
+})
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'SEND_WEBHOOK') {
+    (async () => {
+      try {
+        const result = await webhookAPI.post(message.webhookUrl, {
+          url: message.url,
+          timestamp: Date.now(),
+          type: message.contextType
+        })
+        
+        sendResponse({ success: true, data: result })
+      } catch (error) {
+        sendResponse({ 
+          success: false, 
+          error: error.message,
+          status: error.status 
+        })
+      }
+    })()
+    return true  // Keep channel open for async response
+  }
+})
+```
+
+## Best Practices
+
+### DO ✅
+
+- **Use base URLs**: Define once, reuse everywhere
+  ```javascript
+  const api = fetcher('https://api.example.com')
+  ```
+
+- **Handle errors specifically**: Different status codes need different handling
+  ```javascript
+  if (error.status === 404) return null
+  if (error.status >= 500) logError(error)
+  ```
+
+- **Type your APIs**: Use TypeScript generics for type safety
+  ```typescript
+  const user = await api.get<User>('/users/1')
+  ```
+
+- **Use response interceptors**: Transform responses consistently
+  ```javascript
+  after: [async (r) => r.data || r]
+  ```
+
+- **Choose error handling style**: Pick try/catch or tuple mode and be consistent
+  ```javascript
+  const api = fetcher({ array: true })  // Go-style
+  ```
+
+### DON'T ❌
+
+- **Don't repeat configuration**: Extract to reusable fetchers
+  ```javascript
+  // ❌ Bad
+  await fetcher().get(url, { headers: auth })
+  await fetcher().get(url2, { headers: auth })
+  
+  // ✅ Good
+  const api = fetcher({ headers: auth })
+  ```
+
+- **Don't manually parse JSON**: It's automatic
+  ```javascript
+  // ❌ Bad
+  const response = await api.get('/users')
+  const data = await response.json()
+  
+  // ✅ Good
+  const data = await api.get('/users')
+  ```
+
+- **Don't catch and ignore**: At least log errors
+  ```javascript
+  // ❌ Bad
+  await api.get('/data').catch(() => {})
+  
+  // ✅ Good
+  await api.get('/data').catch(err => {
+    console.error('Failed:', err)
+    return fallbackData
+  })
+  ```
+
+- **Don't use for non-JSON APIs without parse option**: Specify the format
+  ```javascript
+  // ❌ Bad
+  const html = await api.get('/page')  // Tries to parse as JSON
+  
+  // ✅ Good
+  const html = await api.get('/page', { parse: 'text' })
+  ```
+
+## Performance Considerations
+
+- **Tiny footprint**: ~650 bytes gzipped
+- **Zero dependencies**: Uses native fetch
+- **No overhead**: Thin wrapper with minimal processing
+- **Tree-shakeable**: Modern bundlers optimize unused code
+- **Reusable instances**: Create once, use many times
+
+## Browser/Environment Compatibility
+
+- **Modern browsers**: Chrome, Firefox, Safari, Edge (all with native fetch)
+- **Node.js 18+**: Native fetch support
+- **Node.js < 18**: Use with fetch polyfill (node-fetch, undici)
+- **Deno/Bun**: Full native support
+- **React Native**: Works with native fetch
+
+## Related Tools
+
+- Use with [itty-router](https://github.com/kwhitley/itty-router) for full-stack itty apps
+- Use with [itty-chroma](https://github.com/kwhitley/itty-chroma) for styled console logging
+- Pair with TypeScript for maximum type safety
+
+## References
+
+- [itty-fetcher GitHub](https://github.com/kwhitley/itty-fetcher)
+- [MDN Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)
+- [Chrome Extension Fetch](https://developer.chrome.com/docs/extensions/mv3/xhr/)
