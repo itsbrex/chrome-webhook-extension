@@ -1,0 +1,524 @@
+---
+description: Git workflow standards and best practices for version control
+globs: "**/.gitignore,**/.gitattributes,**/.git/**"
+alwaysApply: true
+---
+
+# Git Conventions and Best Practices
+
+## Project Context
+
+This rule set establishes consistent Git workflow standards for version control, commit messages, branch management, and collaborative development. Following these conventions ensures clear project history, easier code reviews, and seamless team collaboration.
+
+## Key Principles
+
+- **Consistent Commit Messages**: Use gitmoji and conventional commits for clarity and automation
+- **Atomic Commits**: Each commit should represent a single, logical change
+- **Clear Branch Strategy**: Follow a predictable branch naming and workflow pattern
+- **Automated Quality Checks**: Use Git hooks to enforce standards before commits/pushes
+- **Meaningful History**: Commit messages should clearly explain "why" and "what" changed
+
+## Before Writing Commits
+
+1. Review staged changes with `git status` and `git diff --staged`
+2. Ensure changes are atomic and logically grouped
+3. Write clear, descriptive commit messages following the format
+4. Verify branch name follows naming conventions
+5. Run linting/formatting tools before committing (via hooks or manually)
+
+## Commit Message Standards
+
+- **Format**: Use gitmoji conventional commits format: `<emoji> <type>(<scope>): <description>`
+- **Types**: feat, fix, docs, style, refactor, test, chore, perf, build, ci
+- **First Line**: Keep under 72 characters, use imperative mood
+- **Body**: Use for detailed explanation, wrap at 72 characters
+- **Footer**: Reference issues/PRs (e.g., `Resolves: #123`, `Closes: #456`)
+- **Scope**: Optional but recommended for larger codebases (e.g., `feat(auth):`, `fix(ui):`)
+
+### Example: Commit Messages
+
+```bash
+# ✅ Good: Clear, concise, follows format
+✨ feat(auth): add JWT token refresh mechanism
+🐛 fix(api): handle null response in user endpoint
+📝 docs(readme): update installation requirements
+
+# ✅ Good: Multi-line commit with detailed body
+✨ feat(payment): implement Stripe payment integration
+
+Add comprehensive payment processing with Stripe SDK:
+- Payment form component with validation
+- Secure token handling and error states
+- User model updates for payment history
+- Unit tests for payment flow
+
+Resolves: #123
+Closes: #456
+
+# ❌ Bad: Vague, no emoji, past tense, too long
+fixed some bugs and added new features to the authentication system
+Added authentication feature that fixes login issues
+
+# ❌ Bad: Wrong format, missing type
+🎉 auth stuff
+feat: add authentication system that includes login, registration, password reset, email verification, social login, and two-factor authentication
+```
+
+### Commit Type Reference
+
+- **✨ feat**: New feature or functionality
+- **🐛 fix**: Bug fix
+- **📝 docs**: Documentation only changes
+- **💄 style**: Code style changes (formatting, semicolons, etc.)
+- **♻️ refactor**: Code refactoring without changing functionality
+- **✅ test**: Adding or updating tests
+- **🔧 chore**: Maintenance tasks, dependency updates, config changes
+- **🚀 perf**: Performance improvements
+- **🔒 security**: Security vulnerability fixes
+- **⬆️ deps**: Dependency upgrades
+- **⬇️ deps**: Dependency downgrades
+- **🚨 build**: Build system or dependency changes
+- **🔀 merge**: Merging branches
+- **🎉 init**: Initial commit
+
+### Emoji Reference
+
+| Emoji | Type | Usage |
+|-------|------|-------|
+| 🎉 | Initial commit | First commit or major milestone |
+| ✨ | New feature | Adding new functionality |
+| 🐛 | Bug fix | Fixing bugs or errors |
+| 📝 | Documentation | Updating docs, readme, comments |
+| 🔧 | Configuration | Config files, tooling, dependencies |
+| 🚀 | Performance | Optimizations, speed improvements |
+| 💄 | Style | UI/UX changes, formatting |
+| ♻️ | Refactoring | Code restructuring without behavior change |
+| ✅ | Tests | Adding, updating, or fixing tests |
+| 🔒 | Security | Security patches and fixes |
+| ⬆️ | Upgrade | Upgrading dependencies or tools |
+| ⬇️ | Downgrade | Downgrading dependencies |
+| 🚨 | Linter | Fixing linter warnings/errors |
+| 🔀 | Merge | Merging branches |
+| 🗑️ | Remove | Removing code or files |
+| 🎨 | Art/Design | Visual improvements, assets |
+| 🔥 | Remove | Removing code or features |
+| 📦 | Package | Package/dependency changes |
+| 👷 | CI | CI/CD changes |
+| 📈 | Analytics | Analytics or tracking changes |
+| 🔐 | Secrets | Security-related changes |
+| 🐳 | Docker | Docker or container changes |
+| 📱 | Mobile | Mobile-specific changes |
+| 🌐 | i18n | Internationalization changes |
+
+## Branch Naming Conventions
+
+- **Feature branches**: `feature/<feature-name>` (e.g., `feature/user-authentication`)
+- **Bug fix branches**: `fix/<bug-description>` (e.g., `fix/login-validation-error`)
+- **Release branches**: `release/<version>` (e.g., `release/v1.2.0`)
+- **Hotfix branches**: `hotfix/<issue-description>` (e.g., `hotfix/critical-security-patch`)
+- **Use kebab-case**: All lowercase with hyphens, no underscores or spaces
+- **Be descriptive**: Branch names should clearly indicate their purpose
+
+### Example: Branch Names
+
+```bash
+# ✅ Good: Clear, descriptive, follows convention
+feature/user-dashboard
+fix/memory-leak-in-cache
+release/v2.1.0
+hotfix/payment-gateway-timeout
+
+# ✅ Good: Specific and scoped
+feature/auth-oauth-integration
+fix/ui-button-alignment-mobile
+release/v1.0.0-beta
+
+# ❌ Bad: Unclear, wrong format, no prefix
+user-dashboard
+FixLoginBug
+feature/user_dashboard  # Use kebab-case, not snake_case
+fix/login bug  # No spaces allowed
+```
+
+## Git Workflow
+
+- **Always Pull First**: Pull latest changes before starting new work to avoid conflicts
+- **Branch from Main**: Create feature branches from `main` or `master`
+- **Small, Atomic Commits**: Commit frequently with small, logical changes
+- **Push Regularly**: Push branches often for backup and collaboration
+- **Code Review**: Create pull requests for all changes to main branches
+- **Clean History**: Squash or rebase commits when merging to main
+
+### Example: Feature Branch Workflow
+
+```bash
+# ✅ Good: Complete workflow
+# 1. Start from up-to-date main
+git checkout main
+git pull origin main
+
+# 2. Create feature branch
+git checkout -b feature/user-authentication
+
+# 3. Make changes and commit frequently
+git add src/auth/
+git commit -m "✨ feat(auth): add login form component"
+git add src/auth/
+git commit -m "✨ feat(auth): implement JWT token storage"
+git commit -m "✅ test(auth): add login form tests"
+
+# 4. Push and create PR
+git push origin feature/user-authentication
+# Create pull request via GitHub/GitLab UI
+
+# ❌ Bad: Working directly on main
+git checkout main
+# ... make changes ...
+git commit -m "fix stuff"
+git push origin main  # Direct push to main without review
+```
+
+## Git Hooks
+
+- **Pre-commit Hooks**: Run linting, formatting, and validation before commits
+- **Commit-msg Hooks**: Validate commit message format (commitlint)
+- **Pre-push Hooks**: Run tests and additional checks before pushing
+- **Setup**: Use tools like `lefthook`, `husky`, or `pre-commit` for hook management
+
+### Example: Git Hooks Configuration
+
+```bash
+# ✅ Good: Using lefthook for hook management
+# .lefthook.yml
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      run: npm run lint
+      glob: "*.{ts,tsx,js,jsx}"
+    format:
+      run: npm run format:check
+      glob: "*.{ts,tsx,js,jsx}"
+  scripts:
+    "check-license":
+      runner: bash
+      stage_fixed: true
+
+commit-msg:
+  commands:
+    commitlint:
+      run: npx --no -- commitlint --edit $1
+
+pre-push:
+  commands:
+    test:
+      run: npm test
+      stage_fixed: false
+
+# ✅ Good: Using husky for hook management
+# .husky/pre-commit
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+npm run lint
+npm run format:check
+
+# .husky/commit-msg
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+npx --no -- commitlint --edit $1
+
+# ❌ Bad: No hooks configured
+# Missing quality checks before commits
+```
+
+## Git Configuration
+
+- **`.gitignore`**: Exclude build artifacts, dependencies, IDE files, secrets
+- **`.gitattributes`**: Configure line endings, binary file handling, merge strategies
+- **Signed Commits**: Use GPG signing for important commits when possible
+- **Default Branch**: Use `main` instead of `master` for new repositories
+
+### Example: Git Configuration
+
+```bash
+# ✅ Good: Comprehensive .gitignore
+# .gitignore
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# ✅ Good: Proper .gitattributes
+# .gitattributes
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Explicitly declare text files you want to always be normalized
+*.js text eol=lf
+*.ts text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+
+# Denote all files that are truly binary
+*.png binary
+*.jpg binary
+*.pdf binary
+
+# ❌ Bad: Missing essential entries in .gitignore
+node_modules
+dist
+# Missing .env, IDE files, OS files, etc.
+```
+
+## Common Git Commands
+
+### Basic Workflow
+
+```bash
+# Status and staging
+git status                          # Check repository status
+git status -s                       # Short status format
+git add .                           # Stage all changes
+git add <file>                      # Stage specific file
+git add -p                          # Interactive staging (patch mode)
+git reset                           # Unstage all changes
+git reset <file>                    # Unstage specific file
+
+# Committing
+git commit -m "✨ feat: message"     # Commit with message
+git commit -a -m "message"          # Stage and commit tracked files
+git commit --amend                  # Amend last commit
+git commit --amend --no-edit        # Amend without changing message
+
+# Pushing and pulling
+git push origin <branch>            # Push to remote branch
+git push -u origin <branch>         # Push and set upstream
+git pull origin <branch>            # Pull latest changes
+git fetch origin                    # Fetch without merging
+```
+
+### Branch Management
+
+```bash
+# Creating and switching branches
+git checkout -b feature/new-feature # Create and switch to new branch
+git switch -c feature/new-feature  # Modern alternative (Git 2.23+)
+git branch feature/new-feature      # Create branch without switching
+git checkout feature/new-feature   # Switch to existing branch
+git switch feature/new-feature      # Modern alternative
+
+# Listing and deleting branches
+git branch                          # List local branches
+git branch -r                       # List remote branches
+git branch -a                       # List all branches
+git branch -d feature/old           # Delete local branch (merged)
+git branch -D feature/old           # Force delete local branch
+git push origin --delete feature/old # Delete remote branch
+
+# Branch tracking
+git branch --set-upstream-to=origin/main main  # Set upstream
+git branch -vv                     # Show tracking info
+```
+
+### Synchronization
+
+```bash
+# Fetching and merging
+git fetch origin                    # Fetch all remote updates
+git fetch origin main               # Fetch specific branch
+git merge origin/main               # Merge remote into current branch
+git pull origin main                # Fetch and merge in one command
+git pull --rebase origin main       # Pull with rebase instead of merge
+
+# Rebasing
+git rebase main                     # Rebase current branch onto main
+git rebase -i HEAD~3                # Interactive rebase last 3 commits
+git rebase --continue                # Continue after resolving conflicts
+git rebase --abort                  # Abort rebase
+```
+
+### Commit History
+
+```bash
+# Viewing history
+git log                             # View commit history
+git log --oneline                   # One-line commit history
+git log --graph --oneline --all     # Visual branch graph
+git log -p                          # Show patch/diff for each commit
+git log -S "search term"            # Search commit content
+git show <commit-hash>              # Show commit details
+
+# Filtering and formatting
+git log --author="Name"             # Filter by author
+git log --since="2 weeks ago"       # Filter by date
+git log --grep="pattern"            # Search commit messages
+git log --pretty=format:"%h - %an, %ar : %s"  # Custom format
+```
+
+### Undoing Changes
+
+```bash
+# Uncommitted changes
+git restore <file>                  # Discard working directory changes
+git restore --staged <file>         # Unstage file
+git checkout -- <file>              # Discard changes (older syntax)
+
+# Committed changes
+git reset --soft HEAD~1             # Undo commit, keep changes staged
+git reset --mixed HEAD~1            # Undo commit, keep changes unstaged
+git reset --hard HEAD~1             # Undo commit, discard changes (dangerous)
+git revert <commit-hash>            # Create new commit that undoes changes
+
+# ❌ Bad: Force pushing to shared branches
+git push --force origin main        # Never force push to shared branches
+```
+
+### Stashing
+
+```bash
+# Stashing changes
+git stash                           # Stash current changes
+git stash save "descriptive message" # Stash with message
+git stash push -m "message" <file> # Stash specific files
+git stash -u                        # Stash including untracked files
+
+# Managing stashes
+git stash list                      # View all stashes
+git stash show                      # Show stash diff
+git stash show -p                   # Show stash patch
+git stash pop                       # Apply and remove most recent stash
+git stash apply stash@{0}           # Apply specific stash (keep stash)
+git stash drop stash@{0}            # Delete specific stash
+git stash clear                     # Delete all stashes
+```
+
+### Advanced Operations
+
+```bash
+# Cherry-picking
+git cherry-pick <commit-hash>       # Apply specific commit to current branch
+git cherry-pick <hash1> <hash2>     # Cherry-pick multiple commits
+git cherry-pick --abort             # Abort cherry-pick
+
+# Searching and inspecting
+git blame <file>                     # Show who changed each line
+git diff HEAD~1                      # Compare with previous commit
+git diff <branch1>..<branch2>        # Compare two branches
+git diff --staged                    # Compare staged changes
+git log --follow <file>              # Follow file through renames
+
+# Cleaning
+git clean -n                         # Dry run (show what would be removed)
+git clean -f                         # Remove untracked files
+git clean -fd                        # Remove untracked files and directories
+
+# Bisecting (debugging)
+git bisect start                     # Start bisect session
+git bisect bad                       # Mark current commit as bad
+git bisect good <hash>               # Mark commit as good
+git bisect reset                     # End bisect session
+```
+
+### Git Configuration
+
+```bash
+# User configuration
+git config --global user.name "Your Name"
+git config --global user.email "your.email@example.com"
+git config --global init.defaultBranch main
+
+# Pull and merge behavior
+git config --global pull.rebase false    # Use merge strategy (default)
+git config --global pull.rebase true    # Use rebase strategy
+git config --global merge.tool vimdiff  # Set merge tool
+
+# Aliases
+git config --global alias.st status
+git config --global alias.co checkout
+git config --global alias.br branch
+git config --global alias.ci commit
+git config --global alias.unstage 'reset HEAD --'
+git config --global alias.last 'log -1 HEAD'
+git config --global alias.lg "log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
+```
+
+## Best Practices
+
+### Commit Practices
+
+- **Atomic Commits**: Each commit should represent one logical change
+- **Frequent Commits**: Commit often with small, incremental changes
+- **Test Before Commit**: Ensure tests pass before committing
+- **Review Staged Changes**: Always review `git diff --staged` before committing
+- **Meaningful Messages**: Write clear commit messages that explain "why", not just "what"
+
+### Branch Practices
+
+- **Short-lived Branches**: Keep feature branches focused and merge quickly
+- **Regular Sync**: Regularly sync feature branches with main to avoid large merges
+- **Delete Merged Branches**: Clean up merged branches to reduce clutter
+- **Protect Main**: Never force push to main/master, require pull requests
+- **Clear Purpose**: Each branch should have a single, clear purpose
+
+### Collaboration Practices
+
+- **Pull Before Push**: Always pull before pushing to avoid conflicts
+- **Review Before Merge**: All changes should go through code review
+- **Clear PRs**: Write clear pull request descriptions explaining changes
+- **Small PRs**: Keep pull requests focused and reasonably sized
+- **Rebase for Clean History**: Rebase feature branches before merging (if team prefers)
+
+### Security Practices
+
+- **Never Commit Secrets**: Use `.gitignore` for `.env` files and secrets
+- **Review Before Push**: Double-check no sensitive data in commits
+- **Use Git Secrets**: Consider tools like `git-secrets` or `truffleHog`
+- **Signed Commits**: Use GPG signing for important commits
+- **Audit History**: Regularly audit commit history for accidental secret commits
+
+### Example: Security Best Practices
+
+```bash
+# ✅ Good: Proper secret management
+# .gitignore
+.env
+.env.local
+*.pem
+*.key
+secrets/
+
+# Use environment variables or secret management tools
+# Never commit API keys, passwords, or tokens
+
+# ❌ Bad: Committing secrets
+git add config.json  # Contains API_KEY: "secret123"
+git commit -m "✨ feat: add configuration"
+# Secrets are now in Git history forever!
+```
+

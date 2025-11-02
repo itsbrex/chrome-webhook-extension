@@ -1,0 +1,468 @@
+---
+description: Chrome Extension Development Guide for JavaScript/TypeScript
+globs: "**/manifest.json,**/*background*.{js,ts},**/*content*.{js,ts},**/*popup*.{js,ts,html},**/*options*.{js,ts,html}"
+alwaysApply: true
+---
+
+# Chrome Extension Development Guide (JavaScript/TypeScript)
+
+## Code Style and Structure
+
+- **Concise and Technical Code**: Write JavaScript/TypeScript code that is concise and technical, with accurate examples.
+- **Modern JavaScript Features**: Utilize modern JavaScript features and best practices.
+- **Functional Programming**: Prefer functional programming patterns; minimize the use of classes.
+- **Descriptive Variable Names**: Use descriptive variable names (e.g., `isExtensionEnabled`, `hasPermission`).
+- **File Structure**: Organize files as follows:
+  - `manifest.json`
+  - Background scripts
+  - Content scripts
+  - Popup scripts
+  - Options page
+
+### Example: File Organization
+
+```typescript
+// ✅ Good: Clear file structure
+extension/
+├── manifest.json
+├── src/
+│   ├── background/
+│   │   └── background_worker.ts
+│   ├── content/
+│   │   └── content_script.ts
+│   ├── popup/
+│   │   ├── popup.ts
+│   │   └── popup.html
+│   └── options/
+│       ├── options.ts
+│       └── options.html
+```
+
+```typescript
+// ✅ Good: Functional approach
+const fetchUserData = async (userId: string): Promise<UserData> => {
+  const response = await chrome.storage.local.get(`user_${userId}`);
+  return response[`user_${userId}`];
+};
+
+// ❌ Bad: Unnecessary class usage
+class UserDataFetcher {
+  async fetch(userId: string): Promise<UserData> {
+    const response = await chrome.storage.local.get(`user_${userId}`);
+    return response[`user_${userId}`];
+  }
+}
+```
+
+## Naming Conventions
+
+- **File Names**: Use lowercase with underscores (e.g., `content_script.js`, `background_worker.js`).
+- **Function and Variable Names**: Use camelCase (e.g., `fetchUserData`).
+- **Class Names**: Use PascalCase (e.g., `UserProfile`).
+
+### Example: Naming
+
+```typescript
+// ✅ Good: Proper naming conventions
+// File: background_worker.ts
+const isExtensionEnabled = true;
+const hasPermission = false;
+
+function fetchUserData() {
+  // ...
+}
+
+class UserProfile {
+  // ...
+}
+
+// ❌ Bad: Inconsistent naming
+// File: BackgroundWorker.ts
+const enabled = true;
+const PERMISSION = false;
+function getUserData() {
+  // ...
+}
+```
+
+## TypeScript Usage
+
+- **Type Safety**: Encourage TypeScript for type safety and better developer experience.
+- **Interfaces**: Use interfaces for defining message structures and API responses.
+- **Union Types and Type Guards**: Leverage TypeScript's union types and type guards for runtime checks.
+
+### Example: TypeScript Best Practices
+
+```typescript
+// ✅ Good: Type-safe message passing
+interface MessageRequest {
+  type: 'FETCH_DATA' | 'SAVE_DATA' | 'DELETE_DATA';
+  payload?: unknown;
+}
+
+interface MessageResponse {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+}
+
+function isMessageRequest(obj: unknown): obj is MessageRequest {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    'type' in obj &&
+    typeof (obj as { type: unknown }).type === 'string'
+  );
+}
+
+// ❌ Bad: No type safety
+function handleMessage(message: any) {
+  if (message.type === 'FETCH_DATA') {
+    // ...
+  }
+}
+```
+
+## Extension Architecture
+
+- **Separation of Concerns**: Implement a clear separation of concerns between different extension components.
+- **Message Passing**: Use message passing for communication between different parts of the extension.
+- **State Management**: Implement proper state management using `chrome.storage` API.
+
+### Example: Message Passing
+
+```typescript
+// ✅ Good: Structured message passing
+// background_worker.ts
+chrome.runtime.onMessage.addListener(
+  (
+    message: MessageRequest,
+    sender,
+    sendResponse: (response: MessageResponse) => void
+  ) => {
+    if (message.type === 'FETCH_DATA') {
+      chrome.storage.local.get('data', (items) => {
+        sendResponse({ success: true, data: items.data });
+      });
+      return true; // Keep channel open for async response
+    }
+    return false;
+  }
+);
+
+// content_script.ts
+async function fetchData(): Promise<unknown> {
+  const response = await chrome.runtime.sendMessage<MessageRequest, MessageResponse>({
+    type: 'FETCH_DATA',
+  });
+  if (response?.success) {
+    return response.data;
+  }
+  throw new Error(response?.error ?? 'Failed to fetch data');
+}
+
+// ❌ Bad: Direct storage access from content script
+// content_script.ts
+chrome.storage.local.get('data', (items) => {
+  // Direct storage access violates separation of concerns
+});
+```
+
+## Manifest and Permissions
+
+- **Manifest Version**: Use the latest manifest version (v3) unless there's a specific need for v2.
+- **Least Privilege**: Follow the principle of least privilege for permissions.
+- **Optional Permissions**: Implement optional permissions where possible.
+
+### Example: Manifest Configuration
+
+```json
+// ✅ Good: Manifest v3 with minimal permissions
+{
+  "manifest_version": 3,
+  "name": "Extension Name",
+  "version": "1.0.0",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "optional_permissions": [
+    "bookmarks",
+    "history"
+  ],
+  "background": {
+    "service_worker": "background_worker.js"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}
+
+// ❌ Bad: Excessive permissions
+{
+  "manifest_version": 2,
+  "permissions": [
+    "<all_urls>",
+    "tabs",
+    "bookmarks",
+    "history",
+    "downloads"
+  ]
+}
+```
+
+## Security and Privacy
+
+- **Content Security Policy (CSP)**: Implement CSP in `manifest.json`.
+- **HTTPS**: Use HTTPS for all network requests.
+- **Input Sanitization**: Sanitize user inputs and validate data from external sources.
+- **Error Handling**: Implement proper error handling and logging.
+
+### Example: Security Practices
+
+```typescript
+// ✅ Good: Input sanitization and HTTPS
+function sanitizeInput(input: string): string {
+  return input
+    .replace(/[<>]/g, '')
+    .trim()
+    .slice(0, 1000);
+}
+
+async function fetchSecureData(url: string): Promise<unknown> {
+  if (!url.startsWith('https://')) {
+    throw new Error('Only HTTPS URLs are allowed');
+  }
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to fetch data:', error);
+    throw error;
+  }
+}
+
+// ❌ Bad: No sanitization, insecure protocol
+function processInput(input: string) {
+  fetch(`http://example.com/api?data=${input}`); // XSS risk, insecure protocol
+}
+```
+
+## UI and Styling
+
+- **Responsive Design**: Create responsive designs for popup and options pages.
+- **CSS Grid/Flexbox**: Use CSS Grid or Flexbox for layouts.
+- **Consistent Styling**: Implement consistent styling across all extension UI elements.
+
+### Example: Responsive UI
+
+```css
+/* ✅ Good: Responsive layout with Flexbox */
+.popup-container {
+  display: flex;
+  flex-direction: column;
+  min-width: 320px;
+  max-width: 500px;
+  padding: 16px;
+}
+
+.popup-header {
+  flex: 0 0 auto;
+}
+
+.popup-content {
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+
+/* ❌ Bad: Fixed dimensions */
+.popup-container {
+  width: 400px;
+  height: 600px;
+}
+```
+
+## Performance Optimization
+
+- **Resource Usage**: Minimize resource usage in background scripts.
+- **Event Pages**: Use event pages instead of persistent background pages when possible.
+- **Lazy Loading**: Implement lazy loading for non-critical extension features.
+- **Content Scripts**: Optimize content scripts to minimize impact on web page performance.
+
+### Example: Performance Optimization
+
+```typescript
+// ✅ Good: Lazy loading and efficient event handling
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === 'install') {
+    initializeExtension();
+  }
+});
+
+async function initializeExtension() {
+  // Lazy load heavy dependencies
+  const { heavyModule } = await import('./heavy_module.js');
+  heavyModule.initialize();
+}
+
+// content_script.ts - Minimal impact
+(function () {
+  'use strict';
+  // Inject minimal code, defer heavy operations
+  const observer = new MutationObserver((mutations) => {
+    // Debounce mutations
+    clearTimeout(window.extensionDebounce);
+    window.extensionDebounce = setTimeout(() => {
+      processMutations(mutations);
+    }, 100);
+  });
+  
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
+})();
+
+// ❌ Bad: Heavy operations in content script
+function processPage() {
+  // Heavy synchronous processing blocks page
+  const allElements = document.querySelectorAll('*');
+  allElements.forEach((el) => {
+    // Expensive operations on every element
+  });
+}
+```
+
+## Browser API Usage
+
+- **Chrome APIs**: Utilize `chrome.*` APIs effectively (e.g., `chrome.tabs`, `chrome.storage`, `chrome.runtime`).
+- **Error Handling**: Implement proper error handling for all API calls.
+- **Scheduling Tasks**: Use `chrome.alarms` for scheduling tasks instead of `setInterval`.
+
+### Example: Chrome API Usage
+
+```typescript
+// ✅ Good: Proper API usage with error handling
+async function getActiveTab(): Promise<chrome.tabs.Tab> {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab) {
+      throw new Error('No active tab found');
+    }
+    return tab;
+  } catch (error) {
+    console.error('Failed to get active tab:', error);
+    throw error;
+  }
+}
+
+// Use chrome.alarms instead of setInterval
+chrome.alarms.create('periodicTask', {
+  delayInMinutes: 1,
+  periodInMinutes: 5,
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === 'periodicTask') {
+    performPeriodicTask();
+  }
+});
+
+// ❌ Bad: setInterval in service worker
+setInterval(() => {
+  performTask();
+}, 5000); // Service workers can be terminated, setInterval won't persist
+```
+
+## Cross-browser Compatibility
+
+- **WebExtensions API**: Use WebExtensions API for cross-browser support where possible.
+- **Graceful Degradation**: Implement graceful degradation for browser-specific features.
+
+### Example: Cross-browser Support
+
+```typescript
+// ✅ Good: Cross-browser compatible API usage
+const browserAPI = typeof chrome !== 'undefined' ? chrome : browser;
+
+async function saveData(key: string, value: unknown): Promise<void> {
+  return new Promise((resolve, reject) => {
+    browserAPI.storage.local.set({ [key]: value }, () => {
+      if (browserAPI.runtime.lastError) {
+        reject(new Error(browserAPI.runtime.lastError.message));
+      } else {
+        resolve();
+      }
+    });
+  });
+}
+
+// ❌ Bad: Chrome-specific API usage
+chrome.storage.local.set({ key: value }); // Won't work in Firefox
+```
+
+## Testing and Debugging
+
+- **Chrome DevTools**: Utilize Chrome DevTools for debugging.
+- **Unit Tests**: Implement unit tests for core extension functionality.
+- **Extension Loading**: Use Chrome's built-in extension loading for testing during development.
+
+### Example: Error Handling and Logging
+
+```typescript
+// ✅ Good: Comprehensive error handling
+interface ExtensionError extends Error {
+  code?: string;
+  context?: Record<string, unknown>;
+}
+
+function logError(error: ExtensionError, context?: Record<string, unknown>): void {
+  const errorInfo = {
+    message: error.message,
+    code: error.code,
+    stack: error.stack,
+    context: { ...error.context, ...context },
+    timestamp: new Date().toISOString(),
+  };
+  
+  // Store errors for debugging
+  chrome.storage.local.get(['errors'], (items) => {
+    const errors = items.errors || [];
+    errors.push(errorInfo);
+    chrome.storage.local.set({ errors: errors.slice(-50) }); // Keep last 50 errors
+  });
+  
+  // Log to console in development
+  if (process.env.NODE_ENV === 'development') {
+    console.error('Extension Error:', errorInfo);
+  }
+}
+```
+
+## Context-Aware Development
+
+- **Project Context**: Always consider the whole project context when providing suggestions or generating code.
+- **Avoid Duplication**: Avoid duplicating existing functionality or creating conflicting implementations.
+- **Seamless Integration**: Ensure that new code integrates seamlessly with the existing project structure and architecture.
+- **Review Current State**: Before adding new features or modifying existing ones, review the current project state to maintain consistency and avoid redundancy.
+- **Prevent Contradictions**: When answering questions or providing solutions, take into account previously discussed or implemented features to prevent contradictions or repetitions.
+
+## Code Output
+
+- **Complete File Content**: When providing code, always output the entire file content, not just new or modified parts.
+- **Imports and Declarations**: Include all necessary imports, declarations, and surrounding code to ensure the file is complete and functional.
+- **Comments and Explanations**: Provide comments or explanations for significant changes or additions within the file.
+- **Large Files**: If the file is too large to reasonably include in full, provide the most relevant complete section and clearly indicate where it fits in the larger file structure.
+
+## Follow Best Practices
+
+- **Chrome Extension Documentation**: Always refer to the official Chrome Extension documentation for best practices, security guidelines, and API usage.
+- **Manifest V3 Migration**: When working with legacy extensions, prioritize migration to Manifest V3 for better performance and security.
+- **Privacy**: Respect user privacy by requesting minimal permissions and being transparent about data usage.
+- **Performance**: Monitor extension performance and optimize for minimal resource usage.
+- **Security**: Regularly review code for security vulnerabilities and follow Chrome's security best practices.
+

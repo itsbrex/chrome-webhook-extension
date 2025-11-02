@@ -1,6 +1,7 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.1.1/schema.json",
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "extends": [
-    "ultracite"
+    "ultracite",
+    "ultracite/core"
   ]
 }
