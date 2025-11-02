@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Webhook Manager",
+  "name": "[DEV] Webhook Manager",
   "description": "A Chrome extension that allows you to send data to webhooks.",
   "version": "2.0",
   "permissions": [
@@ -31,7 +31,7 @@
   "content_scripts": [
     {
       "matches": ["https://www.linkedin.com/*"],
-      "js": ["contentScripts/linkedinParser.js"],
+      "js": ["contentScripts/pageHelper.js"],
       "run_at": "document_idle"
     }
   ],
@@ -41,3 +41,4 @@
     "128": "images/icon128.png"
   }
 }
+

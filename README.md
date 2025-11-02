@@ -77,7 +77,7 @@ This will create a `dist/` directory containing all the necessary extension file
 dist/
 ├── background.js
 ├── contentScripts/
-│   └── linkedinParser.js
+│   └── pageHelper.js
 ├── images/
 │   ├── icon128.png
 │   ├── icon16.png
