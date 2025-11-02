@@ -571,8 +571,16 @@ async function handleLinkedInMutualConnections(tab) {
           
           if (parseResult.success) {
             // Send each payload separately
-            await Promise.all(parseResult.data.map(payload => sendLinkedInDataToWebhooks(payload)));
-            showNotification('✅ LinkedIn Parser', `Successfully parsed ${parseResult.data.length} bi-directional payloads`, true);
+            const results = await Promise.allSettled(parseResult.data.map(payload => sendLinkedInDataToWebhooks(payload)));
+            const failed = results.filter(r => r.status === 'rejected');
+            if (failed.length === 0) {
+              showNotification('✅ LinkedIn Parser', `Successfully parsed ${parseResult.data.length} bi-directional payloads`, true);
+            } else {
+              showNotification('⚠️ LinkedIn Parser', `Parsed ${parseResult.data.length} payloads, but ${failed.length} failed to send`, false);
+              failed.forEach((fail, idx) => {
+                console.error(`Webhook payload ${idx + 1} failed:`, fail.reason);
+              });
+            }
           }
         } else {
           // Parse with single payload
