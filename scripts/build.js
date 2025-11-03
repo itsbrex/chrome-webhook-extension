@@ -8,12 +8,13 @@ const DIST_DIR = 'dist';
 
 // Files and directories to include in the build
 const INCLUDE_PATHS = [
-  'images/',
-  'contentScripts/',
-  'popup.js',
-  'popup.html',
-  'manifest.json',
-  'background.js'
+  'src/images/',
+  'src/contentScripts/',
+  'src/shared/',
+  'src/popup.js',
+  'src/popup.html',
+  'src/manifest.json',
+  'src/background.js'
 ];
 
 async function build() {
@@ -33,7 +34,9 @@ async function build() {
     // Copy files and directories
     for (const includePath of INCLUDE_PATHS) {
       const sourcePath = includePath;
-      const destPath = path.join(DIST_DIR, includePath);
+      // Remove 'src/' prefix for destination paths
+      const relativePath = includePath.replace(/^src\//, '');
+      const destPath = path.join(DIST_DIR, relativePath);
       
       // Ensure the parent directory of destPath exists
       await mkdir(path.dirname(destPath), { recursive: true });

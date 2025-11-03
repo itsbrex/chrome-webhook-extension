@@ -1,0 +1,904 @@
+---
+description: itty-sockets - Dead-simple realtime WebSocket client in ~500 bytes
+globs: "**/*.{js,ts,jsx,tsx}"
+alwaysApply: false
+---
+
+# itty-sockets Realtime Communication Guide
+
+## Overview
+
+itty-sockets is a tiny (~490 bytes) WebSocket client that makes realtime communication dead-simple. No accounts, no API keys, no boilerplate - just connect and start sending messages.
+
+**Installation:**
+```bash
+bun add itty-sockets
+# or npm install itty-sockets
+```
+
+**Import:**
+```javascript
+import { connect } from 'itty-sockets'
+```
+
+## Core Principles
+
+- **Dead-simple**: No setup, accounts, or configuration required
+- **Auto-handles race conditions**: Send immediately, even before connection opens
+- **Automatic JSON parsing**: No manual stringify/parse needed
+- **Private channels**: Security through obscurity + optional encryption
+- **Tiny footprint**: Only ~490 bytes
+- **Flexible**: Works with any JSON-compatible WebSocket server
+
+## Basic Usage Patterns
+
+### 1. Connect and Listen
+
+```javascript
+// ✅ Good: Simple channel connection
+connect('my-cool-channel')
+  .on('message', (event) => {
+    console.log('Received:', event.message)
+    console.log('From user:', event.uid)
+    console.log('At time:', event.date.toLocaleTimeString())
+  })
+
+// ✅ Good: Named function for clarity
+const handleMessage = (event) => {
+  console.log('New message:', event.message)
+}
+
+connect('chat-room')
+  .on('message', handleMessage)
+
+// ❌ Bad: Forgetting to add listeners
+const channel = connect('my-channel')
+// No .on() means you won't receive messages!
+```
+
+### 2. Connect and Send
+
+```javascript
+// ✅ Good: Send immediately (no race conditions!)
+connect('my-channel')
+  .send('hello world')
+  .send({ user: 'Alice', action: 'joined' })
+  .send([1, 2, 3])
+
+// ✅ Good: Store reference for later
+const channel = connect('notifications')
+  .on('message', handleNotification)
+
+// Send later on same connection
+setTimeout(() => {
+  channel.send({ alert: 'Reminder!' })
+}, 5000)
+
+// ✅ Good: Chain multiple operations
+const chat = connect('chat')
+  .on('message', displayMessage)
+  .on('join', showUserJoined)
+  .on('leave', showUserLeft)
+  .send({ type: 'greeting', text: 'Hello everyone!' })
+
+// ❌ Bad: Creating multiple connections to same channel
+connect('chat').send('message 1')
+connect('chat').send('message 2')  // Creates new connection!
+// Store the channel reference instead
+```
+
+### 3. Connection with Options
+
+```javascript
+// ✅ Good: Add metadata with connection
+connect('lobby', { 
+  alias: 'Alice',
+  team: 'red'
+})
+  .on('message', console.log)
+
+// ✅ Good: Echo mode for testing/debugging
+connect('test-channel', { echo: true })
+  .on('message', (e) => {
+    console.log('Echo received:', e.message)
+  })
+  .send('test message')  // Will receive your own message
+
+// ✅ Good: Custom WebSocket URL
+connect('wss://my-websocket-server.com')
+  .on('message', handleMessage)
+  .send({ custom: 'data' })
+
+// ❌ Bad: Hardcoding sensitive data in channel names
+connect('user-123-token-abc123')  // Tokens visible in logs
+// Use encryption or separate auth instead
+```
+
+### 4. Private/Direct Messages
+
+```javascript
+// ✅ Good: Send to specific user
+connect('game-lobby')
+  .on('message', (event) => {
+    if (event.message.type === 'private') {
+      console.log('Private message from:', event.uid)
+    }
+  })
+  .send({ type: 'private', text: 'Secret message' }, 'rMUuzH')
+  //                          recipient uid ^^^^^^^^
+
+// ✅ Good: Reply to sender
+let currentChannel = null
+
+currentChannel = connect('support')
+  .on('message', (event) => {
+    const reply = { type: 'reply', text: 'Thanks for your message!' }
+    currentChannel.send(reply, event.uid)  // Reply to sender
+  })
+
+// ❌ Bad: Broadcasting sensitive data
+channel.send({ password: '12345' })  // Everyone sees this!
+// Use direct messages or encryption
+```
+
+## Event Handling
+
+### 1. Message Events
+
+```javascript
+// ✅ Good: Handle different message types
+connect('chat')
+  .on('message', (event) => {
+    const { message, uid, alias, date } = event
+    
+    switch (message.type) {
+      case 'chat':
+        displayChatMessage(message.text, alias || uid)
+        break
+      case 'typing':
+        showTypingIndicator(alias || uid)
+        break
+      case 'reaction':
+        addReaction(message.emoji, message.messageId)
+        break
+    }
+  })
+
+// ✅ Good: Type-specific handlers with filtering
+connect('notifications')
+  .on((event) => event.message.type === 'alert', (event) => {
+    showAlert(event.message.text)
+  })
+  .on((event) => event.message.type === 'update', (event) => {
+    updateUI(event.message.data)
+  })
+
+// ❌ Bad: Single handler for everything without structure
+connect('app')
+  .on('message', (e) => {
+    // Giant if/else chain
+    if (e.message.t === 'a') { }
+    else if (e.message.t === 'b') { }
+    // ... hard to maintain
+  })
+```
+
+### 2. Connection Events
+
+```javascript
+// ✅ Good: Handle join/leave events
+const userList = new Set()
+
+connect('room')
+  .on('join', (event) => {
+    userList.add(event.uid)
+    console.log(`User ${event.alias || event.uid} joined`)
+    console.log(`Total users: ${event.users}`)
+  })
+  .on('leave', (event) => {
+    userList.delete(event.uid)
+    console.log(`User ${event.alias || event.uid} left`)
+    console.log(`Total users: ${event.users}`)
+  })
+  .on('open', () => {
+    console.log('Connected to channel')
+  })
+  .on('close', () => {
+    console.log('Disconnected from channel')
+  })
+
+// ✅ Good: Update UI on connection changes
+connect('lobby')
+  .on('join', ({ users, alias }) => {
+    updateUserCount(users)
+    showNotification(`${alias} joined`)
+  })
+  .on('leave', ({ users }) => {
+    updateUserCount(users)
+  })
+
+// ❌ Bad: Not handling disconnections
+connect('important-channel')
+  .on('message', handleMessage)
+// Add .on('close') to handle reconnection!
+```
+
+### 3. Conditional Event Handlers
+
+```javascript
+// ✅ Good: Filter events with predicates
+connect('game')
+  // Only handle events from specific user
+  .on(
+    (event) => event.uid === 'abc123',
+    (event) => handleAdminMessage(event)
+  )
+  
+  // Only handle high-priority messages
+  .on(
+    (event) => event.message.priority === 'high',
+    (event) => showUrgentNotification(event.message)
+  )
+
+// ✅ Good: Type guards with TypeScript
+type ChatMessage = { type: 'chat', text: string, user: string }
+type SystemMessage = { type: 'system', text: string }
+
+const isChatMessage = (msg: any): msg is ChatMessage => 
+  msg.type === 'chat'
+
+connect('channel')
+  .on(
+    (e) => isChatMessage(e.message),
+    (e) => {
+      // TypeScript knows e.message is ChatMessage here
+      displayChat(e.message.text, e.message.user)
+    }
+  )
+```
+
+### 4. Remove Event Handlers
+
+```javascript
+// ✅ Good: Clean up handlers when done
+const handleMessage = (event) => {
+  console.log('Message:', event.message)
+}
+
+const channel = connect('temp-channel')
+  .on('message', handleMessage)
+
+// Later, when component unmounts or user leaves
+channel.remove('message', handleMessage)
+
+// ✅ Good: Cleanup in framework lifecycle
+// React example
+useEffect(() => {
+  const handler = (event) => setMessages(prev => [...prev, event.message])
+  const channel = connect('chat').on('message', handler)
+  
+  return () => {
+    channel.remove('message', handler)
+    channel.close()
+  }
+}, [])
+
+// ❌ Bad: Memory leaks from not cleaning up
+const setupChannel = () => {
+  connect('data').on('message', updateState)
+}
+setupChannel() // Called multiple times = multiple handlers
+```
+
+## Advanced Patterns
+
+### 1. Auto-Reconnection
+
+```javascript
+// ✅ Good: Implement reconnection logic
+const createReconnectingChannel = (channelName, options = {}) => {
+  let channel = connect(channelName, options)
+  let reconnectAttempts = 0
+  const maxReconnects = 10
+  const baseDelay = 1000
+
+  channel.on('close', () => {
+    if (reconnectAttempts < maxReconnects) {
+      const delay = baseDelay * Math.pow(2, reconnectAttempts)
+      console.log(`Reconnecting in ${delay}ms...`)
+      
+      setTimeout(() => {
+        reconnectAttempts++
+        channel = connect(channelName, options)
+      }, delay)
+    } else {
+      console.error('Max reconnection attempts reached')
+    }
+  })
+
+  channel.on('open', () => {
+    reconnectAttempts = 0  // Reset on successful connection
+    console.log('Connected!')
+  })
+
+  return channel
+}
+
+const channel = createReconnectingChannel('persistent-channel')
+
+// ✅ Good: Simple periodic reconnection
+const ws = connect('monitor')
+  .on('message', handleData)
+  .on('close', () => console.log('Connection lost'))
+
+// Reconnect every 5 seconds if disconnected
+setInterval(() => ws.open(), 5000)
+```
+
+### 2. Message Throttling/Debouncing
+
+```javascript
+// ✅ Good: Throttle high-frequency events
+const throttle = (fn, delay) => {
+  let lastCall = 0
+  return (...args) => {
+    const now = Date.now()
+    if (now - lastCall >= delay) {
+      lastCall = now
+      fn(...args)
+    }
+  }
+}
+
+const channel = connect('mouse-tracking')
+
+const sendPosition = throttle((x, y) => {
+  channel.send({ type: 'position', x, y })
+}, 100)  // Max 10 messages per second
+
+document.addEventListener('mousemove', (e) => {
+  sendPosition(e.clientX, e.clientY)
+})
+
+// ✅ Good: Debounce user input
+const debounce = (fn, delay) => {
+  let timeout
+  return (...args) => {
+    clearTimeout(timeout)
+    timeout = setTimeout(() => fn(...args), delay)
+  }
+}
+
+const searchChannel = connect('search')
+
+const sendSearchQuery = debounce((query) => {
+  searchChannel.send({ type: 'search', query })
+}, 300)
+
+searchInput.addEventListener('input', (e) => {
+  sendSearchQuery(e.target.value)
+})
+```
+
+### 3. Encrypted Messages
+
+```javascript
+// ✅ Good: Client-side encryption for privacy
+class SecureChannel {
+  constructor(channelName, encryptionKey) {
+    this.key = encryptionKey
+    this.channel = connect(channelName)
+      .on('message', (event) => {
+        try {
+          const decrypted = this.decrypt(event.message)
+          this.handlers.forEach(h => h(decrypted, event))
+        } catch (err) {
+          console.error('Decryption failed:', err)
+        }
+      })
+    this.handlers = []
+  }
+
+  encrypt(data) {
+    // Use Web Crypto API or library like crypto-js
+    return btoa(JSON.stringify(data) + this.key)
+  }
+
+  decrypt(encrypted) {
+    // Simplified example - use proper crypto in production!
+    return JSON.parse(atob(encrypted).replace(this.key, ''))
+  }
+
+  onMessage(handler) {
+    this.handlers.push(handler)
+    return this
+  }
+
+  send(data) {
+    const encrypted = this.encrypt(data)
+    this.channel.send(encrypted)
+    return this
+  }
+}
+
+// Usage
+const secure = new SecureChannel('private-chat', 'shared-secret-key')
+  .onMessage((data) => console.log('Decrypted:', data))
+  .send({ text: 'Secret message' })
+```
+
+### 4. Message Queue Pattern
+
+```javascript
+// ✅ Good: Queue messages with priority
+class MessageQueue {
+  constructor(channelName) {
+    this.queue = []
+    this.processing = false
+    this.channel = connect(channelName)
+      .on('open', () => this.processQueue())
+  }
+
+  send(message, priority = 0) {
+    this.queue.push({ message, priority })
+    this.queue.sort((a, b) => b.priority - a.priority)
+    this.processQueue()
+    return this
+  }
+
+  async processQueue() {
+    if (this.processing || this.queue.length === 0) return
+    
+    this.processing = true
+    
+    while (this.queue.length > 0) {
+      const { message } = this.queue.shift()
+      this.channel.send(message)
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
+    
+    this.processing = false
+  }
+
+  on(event, handler) {
+    this.channel.on(event, handler)
+    return this
+  }
+}
+
+// Usage
+const queue = new MessageQueue('rate-limited-channel')
+  .send({ text: 'Normal priority' }, 0)
+  .send({ text: 'High priority!' }, 10)
+  .send({ text: 'Low priority' }, -5)
+```
+
+## TypeScript Patterns
+
+### 1. Message Type Definitions
+
+```typescript
+// ✅ Good: Define message types
+type MessageType = 'chat' | 'typing' | 'reaction' | 'system'
+
+interface BaseMessage {
+  type: MessageType
+  timestamp: number
+}
+
+interface ChatMessage extends BaseMessage {
+  type: 'chat'
+  text: string
+  userId: string
+}
+
+interface TypingMessage extends BaseMessage {
+  type: 'typing'
+  isTyping: boolean
+}
+
+interface MessageEvent<T = any> {
+  date: Date
+  id: string
+  uid: string
+  alias?: string
+  message: T
+}
+
+// ✅ Good: Type-safe channel wrapper
+class TypedChannel<T> {
+  private channel: ReturnType<typeof connect>
+  private handlers: ((event: MessageEvent<T>) => void)[] = []
+
+  constructor(channelName: string, options?: any) {
+    this.channel = connect(channelName, options)
+      .on('message', (event: MessageEvent<T>) => {
+        this.handlers.forEach(h => h(event))
+      })
+  }
+
+  onMessage(handler: (event: MessageEvent<T>) => void) {
+    this.handlers.push(handler)
+    return this
+  }
+
+  send(message: T, recipient?: string) {
+    this.channel.send(message, recipient)
+    return this
+  }
+
+  on(event: string, handler: (event: any) => void) {
+    this.channel.on(event, handler)
+    return this
+  }
+}
+
+// Usage with type safety
+const chat = new TypedChannel<ChatMessage>('chat-room')
+  .onMessage((event) => {
+    // event.message is typed as ChatMessage
+    console.log(event.message.text)
+  })
+  .send({
+    type: 'chat',
+    text: 'Hello!',
+    userId: 'user123',
+    timestamp: Date.now()
+  })
+```
+
+### 2. Event Handler Types
+
+```typescript
+// ✅ Good: Typed event handlers
+type EventHandler<T = any> = (event: MessageEvent<T>) => void
+type EventFilter<T = any> = (event: MessageEvent<T>) => boolean
+
+interface SocketChannel<T = any> {
+  on(event: string, handler: EventHandler<T>): this
+  on(filter: EventFilter<T>, handler: EventHandler<T>): this
+  send(message: T, recipient?: string): this
+  remove(event: string, handler: EventHandler<T>): this
+  close(): this
+}
+
+// Usage
+const channel: SocketChannel<ChatMessage> = connect('chat')
+  .on('message', (event) => {
+    // Fully typed!
+  })
+```
+
+## Common Use Cases
+
+### 1. Live User Count
+
+```javascript
+// ✅ Good: Display real-time viewer count
+const viewerCountElement = document.getElementById('viewer-count')
+
+const updateViewerCount = ({ users }) => {
+  viewerCountElement.textContent = users
+  viewerCountElement.className = users > 1 ? 'plural' : 'singular'
+}
+
+connect('viewers/' + window.location.pathname)
+  .on('join', updateViewerCount)
+  .on('leave', updateViewerCount)
+
+// ✅ Good: Show who's online
+const onlineUsers = new Map()
+
+connect('presence')
+  .on('join', ({ uid, alias, users }) => {
+    onlineUsers.set(uid, alias || 'Anonymous')
+    renderUserList(onlineUsers)
+  })
+  .on('leave', ({ uid }) => {
+    onlineUsers.delete(uid)
+    renderUserList(onlineUsers)
+  })
+```
+
+### 2. Chat Application
+
+```javascript
+// ✅ Good: Full-featured chat
+const chatChannel = connect('chat-room', { alias: username })
+  .on('message', ({ message, uid, alias, date }) => {
+    addMessageToUI({
+      text: message.text,
+      user: alias || uid,
+      time: date.toLocaleTimeString(),
+      isSelf: uid === myUserId
+    })
+  })
+  .on('join', ({ alias, users }) => {
+    showSystemMessage(`${alias} joined (${users} online)`)
+  })
+  .on('leave', ({ alias, users }) => {
+    showSystemMessage(`${alias} left (${users} online)`)
+  })
+
+// Send message
+const sendButton = document.getElementById('send')
+const messageInput = document.getElementById('message')
+
+sendButton.addEventListener('click', () => {
+  const text = messageInput.value.trim()
+  if (text) {
+    chatChannel.send({ 
+      type: 'chat',
+      text,
+      timestamp: Date.now()
+    })
+    messageInput.value = ''
+  }
+})
+```
+
+### 3. Collaborative Editing
+
+```javascript
+// ✅ Good: Real-time document collaboration
+let localChanges = []
+let remoteChanges = []
+
+const docChannel = connect('document/' + documentId, { 
+  alias: currentUser.name 
+})
+  .on('message', ({ message, uid }) => {
+    if (uid !== myUid) {
+      applyRemoteChange(message.change)
+      remoteChanges.push(message.change)
+    }
+  })
+  .on('join', ({ alias }) => {
+    showToast(`${alias} started editing`)
+  })
+
+// Throttle sending changes
+const sendChange = throttle((change) => {
+  docChannel.send({
+    type: 'edit',
+    change,
+    timestamp: Date.now()
+  })
+}, 200)
+
+editor.addEventListener('input', (e) => {
+  const change = {
+    position: e.target.selectionStart,
+    text: e.data,
+    operation: 'insert'
+  }
+  localChanges.push(change)
+  sendChange(change)
+})
+```
+
+### 4. Live Notifications
+
+```javascript
+// ✅ Good: Real-time notification system
+const notificationChannel = connect('notifications/' + userId)
+  .on('message', ({ message }) => {
+    const notification = createNotification({
+      type: message.type,
+      title: message.title,
+      body: message.body,
+      icon: message.icon,
+      actions: message.actions
+    })
+    
+    showNotification(notification)
+    
+    // Play sound for urgent notifications
+    if (message.priority === 'high') {
+      playNotificationSound()
+    }
+  })
+
+// Request browser notification permission
+if ('Notification' in window && Notification.permission === 'default') {
+  Notification.requestPermission()
+}
+```
+
+### 5. Multiplayer Game State
+
+```javascript
+// ✅ Good: Game state synchronization
+const gameChannel = connect('game/' + gameId, {
+  alias: playerName
+})
+  .on('message', ({ message, uid }) => {
+    switch (message.type) {
+      case 'move':
+        updatePlayerPosition(uid, message.position)
+        break
+      case 'action':
+        handlePlayerAction(uid, message.action)
+        break
+      case 'state':
+        syncGameState(message.state)
+        break
+    }
+  })
+  .on('leave', ({ uid }) => {
+    removePlayer(uid)
+  })
+
+// Send player movement
+const sendPlayerMove = throttle((x, y) => {
+  gameChannel.send({
+    type: 'move',
+    position: { x, y },
+    timestamp: Date.now()
+  })
+}, 50)  // 20 updates per second
+```
+
+### 6. Chrome Extension Integration
+
+```javascript
+// ✅ Good: Extension background script with realtime
+// src/background.js
+import { connect } from 'itty-sockets'
+
+// Global channel for extension events
+const extensionChannel = connect('extension/' + chrome.runtime.id)
+  .on('message', ({ message, uid, alias }) => {
+    // Broadcast to all open tabs
+    chrome.tabs.query({}, (tabs) => {
+      tabs.forEach((tab) => {
+        chrome.tabs.sendMessage(tab.id, {
+          type: 'REALTIME_MESSAGE',
+          payload: message,
+          from: alias || uid
+        })
+      })
+    })
+  })
+
+// Listen for messages from content scripts
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'SEND_REALTIME') {
+    extensionChannel.send({
+      action: message.action,
+      data: message.data,
+      tabId: sender.tab?.id
+    })
+    sendResponse({ success: true })
+  }
+  return true
+})
+```
+
+## Best Practices
+
+### DO ✅
+
+- **Store channel references**: Reuse connections instead of recreating
+  ```javascript
+  const channel = connect('room')
+  // Use channel.send() multiple times
+  ```
+
+- **Handle disconnections**: Add close listeners for reconnection logic
+  ```javascript
+  .on('close', () => reconnect())
+  ```
+
+- **Throttle high-frequency events**: Don't flood the server
+  ```javascript
+  const sendThrottled = throttle(channel.send, 100)
+  ```
+
+- **Use meaningful channel names**: Make them descriptive but private
+  ```javascript
+  connect(`chat-${roomId}-${timestamp}`)
+  ```
+
+- **Clean up handlers**: Remove listeners when components unmount
+  ```javascript
+  channel.remove('message', handler)
+  ```
+
+- **Encrypt sensitive data**: Add encryption layer for private data
+  ```javascript
+  channel.send(encrypt(sensitiveData))
+  ```
+
+### DON'T ❌
+
+- **Don't create multiple connections**: Store and reuse channel references
+  ```javascript
+  // ❌ Bad
+  connect('room').send('msg1')
+  connect('room').send('msg2')
+  
+  // ✅ Good
+  const ch = connect('room')
+  ch.send('msg1')
+  ch.send('msg2')
+  ```
+
+- **Don't send unthrottled high-frequency events**: You'll get rate-limited
+  ```javascript
+  // ❌ Bad
+  document.onmousemove = (e) => channel.send(e)
+  
+  // ✅ Good
+  document.onmousemove = throttle((e) => channel.send(e), 100)
+  ```
+
+- **Don't trust client data**: Always validate on the receiving end
+  ```javascript
+  // ❌ Bad
+  .on('message', (e) => {
+    executeCode(e.message.code)  // Security risk!
+  })
+  
+  // ✅ Good
+  .on('message', (e) => {
+    if (validateMessage(e.message)) {
+      handleSafeMessage(e.message)
+    }
+  })
+  ```
+
+- **Don't store sensitive data in channel names**: Names may be logged
+  ```javascript
+  // ❌ Bad
+  connect('user-token-abc123def456')
+  
+  // ✅ Good
+  connect('secure/' + hashUserId(userId))
+  ```
+
+- **Don't forget error handling**: Handle edge cases gracefully
+  ```javascript
+  // ✅ Good
+  .on('message', (e) => {
+    try {
+      processMessage(e.message)
+    } catch (err) {
+      console.error('Message processing failed:', err)
+    }
+  })
+  ```
+
+## Performance Considerations
+
+- **Tiny footprint**: ~490 bytes gzipped
+- **Auto-queuing**: No race conditions, messages queue automatically
+- **Rate limiting**: Built-in server-side rate limiting (respect it!)
+- **Connection pooling**: Reuse connections, don't recreate
+- **Memory management**: Remove unused event handlers
+
+## Security Considerations
+
+- **Channel privacy**: Security through obscurity - use random/hashed names
+- **No authentication**: Public service - encrypt sensitive data client-side
+- **Client-side validation**: Never trust received data
+- **Rate limiting**: Server blocks excessive traffic
+- **HTTPS/WSS**: All connections are secure (wss://)
+
+## Browser Compatibility
+
+- **Modern browsers**: Chrome, Firefox, Safari, Edge (WebSocket support)
+- **Mobile browsers**: iOS Safari, Chrome Mobile
+- **Not supported**: IE11 and below (no WebSocket support)
+
+## Related Tools
+
+- Use with [itty-chroma](https://github.com/kwhitley/itty-chroma) for styled console logging
+- Use with [itty-fetcher](https://github.com/kwhitley/itty-fetcher) for HTTP requests
+- Pair with encryption libraries (crypto-js, tweetnacl) for secure messaging
+
+## References
+
+- [itty-sockets Website](https://ittysockets.io)
+- [MDN WebSocket API](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket)
+- [WebSocket Protocol](https://datatracker.ietf.org/doc/html/rfc6455)

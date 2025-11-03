@@ -1,3 +1,37 @@
+// Logger will be loaded via script tag in popup.html
+// Wait for DOM to ensure logger is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof ChromeLogger !== 'undefined') {
+    ChromeLogger.updateDebugState();
+  }
+});
+
+// Destructure logger functions (will be available after script loads)
+const getLogger = () => {
+  if (typeof ChromeLogger === 'undefined') {
+    // Fallback if logger not loaded yet
+    return {
+      info: () => {},
+      success: () => {},
+      error: () => {},
+      warning: () => {},
+      webhookLogger: () => {},
+      uiLogger: () => {},
+      updateDebugState: () => {},
+    };
+  }
+  return ChromeLogger;
+};
+
+// Create local references
+const info = (...args) => getLogger().info(...args);
+const success = (...args) => getLogger().success(...args);
+const error = (...args) => getLogger().error(...args);
+const warning = (...args) => getLogger().warning(...args);
+const webhookLogger = (...args) => getLogger().webhookLogger(...args);
+const uiLogger = (...args) => getLogger().uiLogger(...args);
+const updateDebugState = () => getLogger().updateDebugState();
+
 function validateURL(url) {
   try {
     const urlObj = new URL(url);
@@ -120,7 +154,7 @@ function createWebhookCard(hook, index) {
 function loadWebhooks() {
   chrome.storage.local.get('webhooks', function (data) {
     if (chrome.runtime.lastError) {
-      console.error('Failed to load webhooks:', chrome.runtime.lastError);
+      error('Failed to load webhooks:', chrome.runtime.lastError);
       showError('Error loading webhooks. Please try again.');
       return;
     }
@@ -204,7 +238,7 @@ function editWebhook(index) {
 function deleteWebhook(index) {
   chrome.storage.local.get('webhooks', function (data) {
     if (chrome.runtime.lastError) {
-      console.error('Failed to fetch webhooks:', chrome.runtime.lastError);
+      error('Failed to fetch webhooks:', chrome.runtime.lastError);
       showError('Error fetching webhooks. Please try again.');
       return;
     }
@@ -214,11 +248,11 @@ function deleteWebhook(index) {
     webhooks.splice(index, 1);
     chrome.storage.local.set({ webhooks: webhooks }, function () {
       if (chrome.runtime.lastError) {
-        console.error('Failed to delete webhook:', chrome.runtime.lastError);
+        error('Failed to delete webhook:', chrome.runtime.lastError);
         showError('Error deleting webhook. Please try again.');
         return;
       }
-      console.log('Webhook deleted!');
+      webhookLogger('Webhook deleted!');
       showSuccess(`Webhook "${deletedWebhook.name}" deleted successfully!`);
       loadWebhooks(); // Refresh list after deleting
     });
@@ -228,7 +262,7 @@ function deleteWebhook(index) {
 function testWebhook(index, buttonElement) {
   chrome.storage.local.get('webhooks', function (data) {
     if (chrome.runtime.lastError) {
-      console.error('Failed to fetch webhooks:', chrome.runtime.lastError);
+      error('Failed to fetch webhooks:', chrome.runtime.lastError);
       showError('Error fetching webhooks. Please try again.');
       return;
     }
@@ -310,21 +344,29 @@ function clearForm() {
 function loadSettings() {
   chrome.storage.local.get({ 
     settings: { notificationInterval: 5 },
+    debugLoggingEnabled: false,
     linkedinAutoDetect: false,
+    linkedinAutoMutualConnections: false,
+    linkedinBidirectional: false,
     linkedinWebhooks: 'none',
     selectedLinkedinWebhooks: [],
     linkedinDelay: 3
   }, function (data) {
     if (chrome.runtime.lastError) {
-      console.error('Failed to load settings:', chrome.runtime.lastError);
+      error('Failed to load settings:', chrome.runtime.lastError);
       return;
     }
+    
+    // Developer settings
+    document.getElementById('enableDebugLogging').checked = data.debugLoggingEnabled;
     
     // Notification settings
     document.getElementById('notificationInterval').value = data.settings.notificationInterval;
     
     // LinkedIn settings
     document.getElementById('linkedinAutoDetect').checked = data.linkedinAutoDetect;
+    document.getElementById('linkedinAutoMutualConnections').checked = data.linkedinAutoMutualConnections;
+    document.getElementById('linkedinBidirectional').checked = data.linkedinBidirectional;
     document.getElementById('linkedinWebhooks').value = data.linkedinWebhooks;
     document.getElementById('linkedinDelay').value = data.linkedinDelay;
     
@@ -424,6 +466,22 @@ document.addEventListener('DOMContentLoaded', function() {
   initializeTabs();
   initializeFormToggle();
   
+  // Debug logging toggle handler
+  document.getElementById('enableDebugLogging').addEventListener('change', function(e) {
+    const enabled = e.target.checked;
+    chrome.storage.local.set({ debugLoggingEnabled: enabled }, function() {
+      if (chrome.runtime.lastError) {
+        error('Failed to save debug logging setting:', chrome.runtime.lastError);
+        showError('Error saving debug logging setting.');
+        return;
+      }
+      // Update debug state in this context
+      updateDebugState();
+      showSuccess(`Debug logging ${enabled ? 'enabled' : 'disabled'}`);
+      info(`Debug logging ${enabled ? 'enabled' : 'disabled'} by user`);
+    });
+  });
+  
   // Webhook form submission
   document.getElementById('webhookForm').addEventListener('submit', function (e) {
     e.preventDefault();
@@ -450,7 +508,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     chrome.storage.local.get({ webhooks: [] }, function (data) {
       if (chrome.runtime.lastError) {
-        console.error('Error retrieving webhooks:', chrome.runtime.lastError);
+        error('Error retrieving webhooks:', chrome.runtime.lastError);
         showError('Error retrieving webhooks. Please try again.');
         return;
       }
@@ -469,12 +527,12 @@ document.addEventListener('DOMContentLoaded', function() {
       
       chrome.storage.local.set({ webhooks: webhooks }, function () {
         if (chrome.runtime.lastError) {
-          console.error('Failed to save the webhook:', chrome.runtime.lastError);
+          error('Failed to save the webhook:', chrome.runtime.lastError);
           showError('Error saving webhook. Please try again.');
           return;
         }
         
-        console.log('Webhook saved!');
+        webhookLogger('Webhook saved!');
         const action = isEditing ? 'updated' : 'added';
         showSuccess(`Webhook "${name}" ${action} successfully!`);
         loadWebhooks();
@@ -503,7 +561,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     chrome.storage.local.set({ settings }, function () {
       if (chrome.runtime.lastError) {
-        console.error('Failed to save settings:', chrome.runtime.lastError);
+        error('Failed to save settings:', chrome.runtime.lastError);
         showError('Error saving settings. Please try again.');
         return;
       }
@@ -517,6 +575,8 @@ document.addEventListener('DOMContentLoaded', function() {
     e.preventDefault();
     
     const linkedinAutoDetect = document.getElementById('linkedinAutoDetect').checked;
+    const linkedinAutoMutualConnections = document.getElementById('linkedinAutoMutualConnections').checked;
+    const linkedinBidirectional = document.getElementById('linkedinBidirectional').checked;
     const linkedinWebhooks = document.getElementById('linkedinWebhooks').value;
     const linkedinDelay = parseInt(document.getElementById('linkedinDelay').value);
     
@@ -540,6 +600,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const linkedinSettings = {
       linkedinAutoDetect,
+      linkedinAutoMutualConnections,
+      linkedinBidirectional,
       linkedinWebhooks,
       selectedLinkedinWebhooks,
       linkedinDelay
@@ -547,7 +609,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     chrome.storage.local.set(linkedinSettings, function () {
       if (chrome.runtime.lastError) {
-        console.error('Failed to save LinkedIn settings:', chrome.runtime.lastError);
+        error('Failed to save LinkedIn settings:', chrome.runtime.lastError);
         showError('Error saving LinkedIn settings. Please try again.');
         return;
       }
@@ -579,7 +641,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (response && response.success) {
           showSuccess('Selector test completed. Check browser console for detailed results.');
-          console.log('LinkedIn selector test results:', response.data);
+          uiLogger('LinkedIn selector test results:', response.data);
         } else {
           showError('Failed to test selectors.');
         }
