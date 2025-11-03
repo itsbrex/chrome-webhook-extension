@@ -10,7 +10,6 @@
 # Icon must end with two \r
 Icon
 
-
 # Thumbnails
 ._*
 
@@ -41,3 +40,5 @@ package-lock.json
 
 # Google Apps Script utilities (not part of Chrome extension)
 scripts/gas/
+.cursor/plans/repository-source-organization-ea95829c.plan.md
+

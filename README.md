@@ -44,6 +44,7 @@ This project isn't merely a functional tool; it's a personal statement and a bea
 - **Retry Mechanism**: Automatic retry (up to 3 attempts) for failed webhook calls with progressive delays
 - **Secure Storage**: All webhook information is securely stored using Chrome's local storage
 - **Settings Management**: Configurable notification update intervals and future expandability
+- **Debug Logging**: Styled console logging system with visual badges for easier debugging (disabled by default)
 
 ## Installation
 
@@ -108,6 +109,13 @@ Right-click on any webpage element:
 
 ### Settings
 - **Notification Intervals**: Configure how often queue notifications update (1-60 seconds)
+- **Debug Logging**: Enable styled console logging for development and debugging
+  - Navigate to Settings → Developer Settings
+  - Check "Enable styled console logging"
+  - Open Chrome DevTools Console to see color-coded, badge-styled log output
+  - Logs include: INFO (blue), SUCCESS (green), ERROR (red), WARNING (orange), DEBUG (purple)
+  - Feature-specific logs: WEBHOOK (teal), LINKEDIN (indigo), QUEUE (brown), UI (purple), API (green)
+  - Disabled by default for production use
 - Access via the **"Settings"** tab in the extension popup
 
 ## Webhook Payload Examples

@@ -1,6 +1,33 @@
 // LinkedIn Mutual Connections Parser
 // Content script for parsing LinkedIn mutual connections without triggering anti-bot detection
 
+// Logger needs to be injected separately for content scripts
+// Create fallback logger functions that check if ChromeLogger exists
+const getLogger = () => {
+  if (typeof window.ChromeLogger !== 'undefined') {
+    return window.ChromeLogger;
+  }
+  // Fallback no-op logger
+  return {
+    debug: () => {},
+    error: () => {},
+    warning: () => {},
+    linkedinLogger: () => {},
+    updateDebugState: () => {},
+  };
+};
+
+const debug = (...args) => getLogger().debug(...args);
+const error = (...args) => getLogger().error(...args);
+const warning = (...args) => getLogger().warning(...args);
+const linkedinLogger = (...args) => getLogger().linkedinLogger(...args);
+const updateDebugState = () => getLogger().updateDebugState();
+
+// Try to initialize debug state
+if (typeof window.ChromeLogger !== 'undefined') {
+  window.ChromeLogger.updateDebugState();
+}
+
 class LinkedInMutualConnectionsParser {
   constructor() {
     this.config = {
@@ -14,46 +41,51 @@ class LinkedInMutualConnectionsParser {
       selectors: {
         // Search results page selectors
         mutualConnectionsLink:
-          'a[href*="facetConnectionOf"], a[href*="mutual"]',
+          'a[href*="facetConnectionOf"], a[href*="mutual"], a[href*="connections/shared"], a[href*="keyword=mutual"]',
         connectionName:
-          'span.entity-result__title-text a span[dir="ltr"], .entity-result__title-text a span',
+          'span.entity-result__title-text a span[dir="ltr"], .entity-result__title-text a span, span.reusable-search__entity-result-list__result-link-text, span[aria-hidden="true"][class*="t-14"], span[aria-hidden="true"][class*="t-16"]',
         profileUrl: 'a.app-aware-link[href*="/in/"], a[href*="/in/"]',
         profileHeadline:
-          '.entity-result__primary-subtitle, .entity-result__summary',
+          '.entity-result__primary-subtitle, .entity-result__summary, div.entity-result__primary-subtitle, div[aria-hidden="true"][class*="t-12"], div[data-test-id="hero-title"] ~ div',
         location:
-          '.entity-result__secondary-subtitle, .entity-result__location',
-        profileImage: 'img.presence-entity__image, .entity-result__image img',
-        connectionBadge: '.entity-result__badge-text, .entity-result__badge',
+          '.entity-result__secondary-subtitle, .entity-result__location, div.entity-result__secondary-subtitle, span[aria-hidden="true"][class*="t-12"], span.t-black--light, span[data-test-id="hero-location"]',
+        profileImage:
+          'img.presence-entity__image, .entity-result__image img, img.reusable-search__result-image, img[alt*="profile"]',
+        connectionBadge:
+          '.entity-result__badge-text, .entity-result__badge, span[aria-hidden="true"][class*="entity-result__badge"]',
         premiumIndicator: 'li-icon[type="linkedin-bug"], .premium-icon',
-        searchContainer: '.search-results-container, .search-results__list',
+        searchContainer:
+          '.search-results-container, .search-results__list, .reusable-search__entity-result-list, .search-results-page__results-list',
         resultItems:
-          'li.reusable-search__result-container, .entity-result, .search-result',
-        paginationContainer: '.artdeco-pagination, .pagination',
+          'li.reusable-search__result-container, .entity-result, .search-result, li.reusable-search__entity-result-list__item, div.reusable-search__entity-result, li.search-reusables__result-container',
+        paginationContainer: '.artdeco-pagination, .pagination, nav.artdeco-pagination',
         nextPageButton:
-          'button[aria-label*="Next"], .artdeco-pagination__button--next',
+          'button[aria-label*="Next"], .artdeco-pagination__button--next, button.artdeco-pagination__button--next, button[aria-label*="Next page"]',
 
         // Profile page selectors
         profileName:
-          'h1.text-heading-xlarge, .text-heading-xlarge, .pv-text-details__title h1, .pv-top-card--list h1',
+          'h1.text-heading-xlarge, .text-heading-xlarge, .pv-text-details__title h1, .pv-top-card--list h1, .pv-text-details__left-panel h1, div[data-test-id="hero-title"] h1, main h1.inline.t-24',
         profileTitle:
-          '.text-body-medium.break-words, .pv-text-details__title + div, .pv-top-card--list-bullet .text-body-medium',
+          '.text-body-medium.break-words, .pv-text-details__title + div, .pv-top-card--list-bullet .text-body-medium, .pv-text-details__left-panel div.text-body-medium, span[data-test-id="hero-title"]',
         profileLocation:
-          '.text-body-small.inline.t-black--light.break-words, .pv-text-details__left-panel .geo-text',
+          '.text-body-small.inline.t-black--light.break-words, .pv-text-details__left-panel .geo-text, span[data-test-id="hero-location"], div[data-test-id="hero-location"] span',
         profileImage:
-          '.pv-top-card-profile-picture__image, .pv-member-photo-edit__image, img.pv-top-card-profile-picture__image--show',
+          '.pv-top-card-profile-picture__image, .pv-member-photo-edit__image, img.pv-top-card-profile-picture__image--show, img.profile-photo-edit__preview, img[alt*="Profile photo"]',
         aboutSection:
-          '.pv-about-section .pv-about__summary-text, .pv-shared-text-with-see-more .inline-show-more-text',
+          '.pv-about-section .pv-about__summary-text, .pv-shared-text-with-see-more .inline-show-more-text, section[data-section="about"] .inline-show-more-text, section[data-section="about"] span[aria-hidden="true"], div#about',
         experienceSection:
-          '.pv-profile-section.experience-section, .pvs-list__container',
+          '.pv-profile-section.experience-section, .pvs-list__container, section[data-section="experience"], section#experience, section[data-test-id="experience"], div#experience',
         educationSection:
-          '.pv-profile-section.education-section, .pvs-list__container',
-        skillsSection: '.pv-skill-categories-section, .pvs-list__container',
+          '.pv-profile-section.education-section, .pvs-list__container, section[data-section="education"], section#education, section[data-test-id="education"], div#education',
+        skillsSection:
+          '.pv-skill-categories-section, .pvs-list__container, section[data-section="skills"], section#skills, section[data-test-id="skills"], div#skills',
         connectionsCount:
-          '.pv-top-card--list-bullet .t-black--light span, .pv-top-card--list-bullet a[href*="overlay/connections"]',
+          '.pv-top-card--list-bullet .t-black--light span, .pv-top-card--list-bullet a[href*="overlay/connections"], span[data-test-id="hero-summary-counts__connections"], a[data-test-id="hero-summary-counts__connections"] span, ul li span.t-bold',
         // Select all relevant spans, filter by text content "follower" in code
-        followersCount: '.pv-top-card--list-bullet .t-black--light span',
+        followersCount:
+          '.pv-top-card--list-bullet .t-black--light span, span[data-test-id="hero-summary-counts__followers"], a[data-test-id="hero-summary-counts__followers"] span',
         mutualConnectionsText:
-          '.pv-top-card--list-bullet a[href*="facetConnectionOf"], .pv-top-card--list-bullet a[href*="mutual"]',
+          '.pv-top-card--list-bullet a[href*="facetConnectionOf"], .pv-top-card--list-bullet a[href*="mutual"], a[href*="connections/shared"], a[data-test-id="hero-summary-counts__mutualConnections"], a[href*="facetConnectionOf"]',
       },
       maxPagesPerSession: 50,
       maxConnectionsPerPage: 10,
@@ -68,7 +100,7 @@ class LinkedInMutualConnectionsParser {
   // Parse individual LinkedIn profile page
   parseProfilePage() {
     try {
-      console.log('Parsing LinkedIn profile page...');
+      linkedinLogger('Parsing LinkedIn profile page...');
 
       // Extract profile data using enhanced selectors
       const profile = {
@@ -154,10 +186,10 @@ class LinkedInMutualConnectionsParser {
       // Extract skills information
       profile.skills = this.extractSkillsData();
 
-      console.log('Profile parsing completed:', profile);
+      linkedinLogger('Profile parsing completed:', profile);
       return profile;
-    } catch (error) {
-      console.error('Error parsing LinkedIn profile page:', error);
+    } catch (err) {
+      error('Error parsing LinkedIn profile page:', err);
       return null;
     }
   }
@@ -228,8 +260,8 @@ class LinkedInMutualConnectionsParser {
       }
 
       return experiences;
-    } catch (error) {
-      console.warn('Error extracting experience data:', error);
+    } catch (err) {
+      warning('Error extracting experience data:', err);
       return [];
     }
   }
@@ -278,8 +310,8 @@ class LinkedInMutualConnectionsParser {
       }
 
       return educations;
-    } catch (error) {
-      console.warn('Error extracting education data:', error);
+    } catch (err) {
+      warning('Error extracting education data:', err);
       return [];
     }
   }
@@ -316,8 +348,8 @@ class LinkedInMutualConnectionsParser {
       }
 
       return skills;
-    } catch (error) {
-      console.warn('Error extracting skills data:', error);
+    } catch (err) {
+      warning('Error extracting skills data:', err);
       return [];
     }
   }
@@ -341,13 +373,13 @@ class LinkedInMutualConnectionsParser {
         this.config.selectors.mutualConnectionsLink
       );
       if (!mutualConnectionsElement) {
-        console.log('No mutual connections link found on page');
+        linkedinLogger('No mutual connections link found on page');
         return null;
       }
 
       const href = mutualConnectionsElement.href;
       if (!href) {
-        console.log('Mutual connections link has no href');
+        linkedinLogger('Mutual connections link has no href');
         return null;
       }
 
@@ -356,7 +388,7 @@ class LinkedInMutualConnectionsParser {
       // Extract encoded profile ID
       const encodedId = url.searchParams.get('facetConnectionOf');
       if (!encodedId) {
-        console.log('No facetConnectionOf parameter found in URL:', href);
+        linkedinLogger('No facetConnectionOf parameter found in URL:', href);
         return null;
       }
 
@@ -367,7 +399,7 @@ class LinkedInMutualConnectionsParser {
       );
       const totalCount = countMatch ? Number.parseInt(countMatch[1]) + 2 : null; // +2 for the named ones
 
-      console.log('Detected mutual connections:', {
+      linkedinLogger('Detected mutual connections:', {
         encodedId,
         totalCount,
         text: text.trim(),
@@ -379,8 +411,8 @@ class LinkedInMutualConnectionsParser {
         totalCount,
         text: text.trim(),
       };
-    } catch (error) {
-      console.error('Error detecting mutual connections:', error);
+    } catch (err) {
+      error('Error detecting mutual connections:', err);
       return null;
     }
   }
@@ -399,19 +431,19 @@ class LinkedInMutualConnectionsParser {
         this.config.selectors.resultItems
       );
 
-      console.log(`Found ${resultItems.length} result items on page`);
+      debug(`Found ${resultItems.length} result items on page`);
 
       if (resultItems.length === 0) {
         // Try alternative selectors
         const alternativeItems = document.querySelectorAll(
           '.entity-result, .search-result__wrapper'
         );
-        console.log(
+        debug(
           `Trying alternative selectors, found ${alternativeItems.length} items`
         );
 
         if (alternativeItems.length === 0) {
-          console.warn('No result items found with any selector');
+          warning('No result items found with any selector');
           return connections;
         }
 
@@ -422,10 +454,10 @@ class LinkedInMutualConnectionsParser {
             if (connection) {
               connections.push(connection);
             }
-          } catch (error) {
-            console.warn(
+          } catch (err) {
+            warning(
               'Failed to extract connection data from alternative selector:',
-              error
+              err
             );
           }
           await this.antiDetection.randomDelay(200, 500);
@@ -438,8 +470,8 @@ class LinkedInMutualConnectionsParser {
             if (connection) {
               connections.push(connection);
             }
-          } catch (error) {
-            console.warn('Failed to extract connection data:', error);
+          } catch (err) {
+            warning('Failed to extract connection data:', err);
           }
 
           // Small delay between items to appear human-like
@@ -447,13 +479,13 @@ class LinkedInMutualConnectionsParser {
         }
       }
 
-      console.log(
+      linkedinLogger(
         `Successfully parsed ${connections.length} connections from page`
       );
       return connections;
-    } catch (error) {
-      console.error('Error parsing search results:', error);
-      throw error;
+    } catch (err) {
+      error('Error parsing search results:', err);
+      throw err;
     }
   }
 
@@ -481,7 +513,7 @@ class LinkedInMutualConnectionsParser {
       }
 
       if (!(nameElement && profileUrlElement)) {
-        console.warn('Essential data missing for connection:', {
+        warning('Essential data missing for connection:', {
           hasName: !!nameElement,
           hasUrl: !!profileUrlElement,
         });
@@ -538,7 +570,7 @@ class LinkedInMutualConnectionsParser {
 
       // Validate essential fields
       if (!(connection.name && connection.profileUrl)) {
-        console.warn(
+        warning(
           'Connection missing essential data after extraction:',
           connection
         );
@@ -546,8 +578,8 @@ class LinkedInMutualConnectionsParser {
       }
 
       return connection;
-    } catch (error) {
-      console.error('Error extracting connection data:', error);
+    } catch (err) {
+      error('Error extracting connection data:', err);
       return null;
     }
   }
@@ -619,7 +651,7 @@ class LinkedInMutualConnectionsParser {
       let currentPage = 1;
 
       while (currentPage <= this.config.maxPagesPerSession) {
-        console.log(`Processing page ${currentPage}...`);
+        linkedinLogger(`Processing page ${currentPage}...`);
 
         // Check session timeout
         if (
@@ -636,7 +668,7 @@ class LinkedInMutualConnectionsParser {
 
         // Check if there are more pages
         if (!this.hasNextPage()) {
-          console.log('No more pages found, parsing complete');
+          linkedinLogger('No more pages found, parsing complete');
           break;
         }
 
@@ -744,7 +776,7 @@ class LinkedInMutualConnectionsParser {
 
   // Test function to validate selectors on current page
   testSelectors() {
-    console.log('Testing LinkedIn selectors on current page...');
+    debug('Testing LinkedIn selectors on current page...');
     const results = {};
 
     for (const [key, selector] of Object.entries(this.config.selectors)) {
@@ -755,7 +787,7 @@ class LinkedInMutualConnectionsParser {
         elements: elements.length > 0 ? Array.from(elements).slice(0, 3) : [],
       };
 
-      console.log(
+      debug(
         `${key}: ${elements.length} elements found with selector "${selector}"`
       );
     }
@@ -938,4 +970,5 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-console.log('LinkedIn Mutual Connections Parser loaded');
+linkedinLogger('LinkedIn Mutual Connections Parser loaded');
+

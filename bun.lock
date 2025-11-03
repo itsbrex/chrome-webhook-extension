@@ -3,6 +3,9 @@
   "workspaces": {
     "": {
       "name": "chrome-webhook-extension",
+      "dependencies": {
+        "itty-chroma": "^1.0.6",
+      },
       "devDependencies": {
         "@biomejs/biome": "2.3.2",
         "@testing-library/dom": "^10.4.1",
@@ -306,6 +309,8 @@
     "iconv-lite": ["iconv-lite@0.6.3", "", { "dependencies": { "safer-buffer": ">= 2.1.2 < 3.0.0" } }, "sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw=="],
 
     "is-potential-custom-element-name": ["is-potential-custom-element-name@1.0.1", "", {}, "sha512-bCYeRA2rVibKZd+s2625gGnGF/t7DSqDs4dP7CrLA1m7jKWz6pps0LpYLJN8Q64HtmPKJ1hrN3nzPNKFEKOUiQ=="],
+
+    "itty-chroma": ["itty-chroma@1.0.6", "", {}, "sha512-2tEGyVAZXlkJPNFFmuQUsNkvYhelHzvwiDUM0DJ+qCzkiqTkjCTgGxWxLJ07R0D/KskP3occI9wGoPctp/CYkg=="],
 
     "js-tokens": ["js-tokens@4.0.0", "", {}, "sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ=="],
 

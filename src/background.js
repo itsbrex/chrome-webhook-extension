@@ -1,3 +1,12 @@
+// Load logger using importScripts for service worker
+importScripts('shared/logger.js');
+
+// Initialize debug logging state
+ChromeLogger.updateDebugState();
+
+// Destructure for easier access
+const { info, success, error, warning, debug, webhookLogger, linkedinLogger, queueLogger, apiLogger, updateDebugState } = ChromeLogger;
+
 // Webhook queue management
 const webhookQueues = new Map(); // Map of webhookUrl -> { queue: [], lastSent: timestamp, timer: timeoutId }
 const queueNotifications = new Map(); // Map of notificationId -> { webhookUrl, intervalId }
@@ -6,6 +15,7 @@ const queueNotifications = new Map(); // Map of notificationId -> { webhookUrl, 
 const linkedinSessions = new Map(); // Map of sessionId -> { tabId, profileData, status }
 
 chrome.runtime.onInstalled.addListener(() => {
+  updateDebugState(); // Update debug state on install
   chrome.contextMenus.create(
     {
       id: 'sendToWebhook',
@@ -14,7 +24,7 @@ chrome.runtime.onInstalled.addListener(() => {
     },
     () => {
       if (chrome.runtime.lastError) {
-        console.error(
+        error(
           `Error creating parent menu: ${chrome.runtime.lastError.message}`
         );
       }
@@ -32,7 +42,7 @@ chrome.runtime.onInstalled.addListener(() => {
     },
     () => {
       if (chrome.runtime.lastError) {
-        console.error(
+        error(
           `Error creating LinkedIn menu: ${chrome.runtime.lastError.message}`
         );
       }
@@ -43,6 +53,8 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.runtime.onStartup.addListener(() => {
+  updateDebugState(); // Update debug state on startup
+  info('Extension started');
   updateWebhookMenus();
   initializeQueues();
 });
@@ -163,7 +175,7 @@ function updateWebhookMenus() {
         () => {
           // Check for errors
           if (chrome.runtime.lastError) {
-            console.error(
+            error(
               `Error recreating parent menu: ${chrome.runtime.lastError.message}`
             );
             return;
@@ -300,7 +312,7 @@ function extractDataAndSend(webhookUrl, urlToSend, type, tabId, selectionText) {
     },
     (injectionResults) => {
       if (chrome.runtime.lastError) {
-        console.error(
+        error(
           'Script injection failed:',
           chrome.runtime.lastError.message
         );
@@ -362,7 +374,7 @@ async function extractLinkedInProfileAndSend(webhookUrl, urlToSend, tabId) {
     });
 
     if (!parseResult.success) {
-      console.error(
+      linkedinLogger(
         'LinkedIn profile parsing failed, falling back to basic extraction'
       );
       // Fall back to basic page extraction
@@ -407,14 +419,14 @@ async function extractLinkedInProfileAndSend(webhookUrl, urlToSend, tabId) {
         ) {
           try {
             await handleLinkedInMutualConnectionsAuto(tabId, profileData);
-          } catch (error) {
-            console.error('Auto mutual connections parsing failed:', error);
+          } catch (err) {
+            linkedinLogger('Auto mutual connections parsing failed:', err);
           }
         }
       }
     );
-  } catch (error) {
-    console.error('LinkedIn profile extraction failed:', error);
+  } catch (err) {
+    linkedinLogger('LinkedIn profile extraction failed:', err);
     // Fall back to basic page extraction
     extractDataAndSendBasic(webhookUrl, urlToSend, 'page', tabId, null);
   }
@@ -451,7 +463,7 @@ function extractDataAndSendBasic(
     },
     (injectionResults) => {
       if (chrome.runtime.lastError) {
-        console.error(
+        error(
           'Script injection failed:',
           chrome.runtime.lastError.message
         );
@@ -574,7 +586,7 @@ function postToWebhookDirect(
   })
     .then((response) => {
       if (!response.ok && retryCount > 0) {
-        console.log(
+        apiLogger(
           `Webhook failed with status ${response.status}, retrying... (${retryCount} attempts left)`
         );
         setTimeout(
@@ -588,14 +600,14 @@ function postToWebhookDirect(
           1000
         );
       } else if (response.ok) {
-        console.log('Webhook sent with response status:', response.status);
+        webhookLogger('Webhook sent with response status:', response.status);
         showNotification(
           `✅ ${webhookName} - Success`,
           `Data sent successfully to ${webhookName}`,
           true
         );
       } else {
-        console.log('Webhook failed after all retries');
+        webhookLogger('Webhook failed after all retries');
         showNotification(
           `❌ ${webhookName} - Failed`,
           'Failed to send data after 3 attempts',
@@ -603,10 +615,10 @@ function postToWebhookDirect(
         );
       }
     })
-    .catch((error) => {
-      console.error('Error sending webhook:', error);
+    .catch((err) => {
+      error('Error sending webhook:', err);
       if (retryCount > 0) {
-        console.log(
+        apiLogger(
           `Retrying webhook in 2 seconds... (${retryCount} attempts left)`
         );
         setTimeout(
@@ -622,7 +634,7 @@ function postToWebhookDirect(
       } else {
         showNotification(
           `❌ ${webhookName} - Error`,
-          `Network error: ${error.message}`,
+          `Network error: ${err.message}`,
           false
         );
       }
@@ -634,6 +646,11 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
   if (namespace === 'local' && changes.webhooks) {
     updateWebhookMenus();
     initializeQueues();
+  }
+  // Update debug logging state when setting changes
+  if (namespace === 'local' && changes.debugLoggingEnabled) {
+    updateDebugState();
+    info('Debug logging', changes.debugLoggingEnabled.newValue ? 'enabled' : 'disabled');
   }
 });
 
@@ -717,7 +734,7 @@ async function handleLinkedInMutualConnections(tab) {
                   false
                 );
                 failed.forEach((fail, idx) => {
-                  console.error(
+                  error(
                     `Webhook payload ${idx + 1} failed:`,
                     fail.reason
                   );
@@ -744,8 +761,8 @@ async function handleLinkedInMutualConnections(tab) {
               );
             }
           }
-        } catch (error) {
-          console.error('LinkedIn parsing error:', error);
+        } catch (err) {
+          linkedinLogger('LinkedIn parsing error:', err);
           showNotification(
             '❌ LinkedIn Parser',
             `Error: ${error.message}`,
@@ -762,9 +779,9 @@ async function handleLinkedInMutualConnections(tab) {
         }
       }
     );
-  } catch (error) {
-    console.error('LinkedIn parsing error:', error);
-    showNotification('❌ LinkedIn Parser', `Error: ${error.message}`, false);
+  } catch (err) {
+    linkedinLogger('LinkedIn parsing error:', err);
+    showNotification('❌ LinkedIn Parser', `Error: ${err.message}`, false);
 
     // Cleanup any sessions
     for (const [sessionId, session] of linkedinSessions.entries()) {
@@ -782,7 +799,7 @@ async function handleLinkedInMutualConnections(tab) {
 async function handleLinkedInMutualConnectionsAuto(tabId, profileData) {
   try {
     if (!profileData.mutualConnectionsUrl) {
-      console.log('No mutual connections URL found for auto parsing');
+      linkedinLogger('No mutual connections URL found for auto parsing');
       return;
     }
 
@@ -849,7 +866,7 @@ async function handleLinkedInMutualConnectionsAuto(tabId, profileData) {
                   false
                 );
                 failed.forEach((fail, idx) => {
-                  console.error(
+                  error(
                     `Webhook payload ${idx + 1} failed:`,
                     fail.reason
                   );
@@ -880,8 +897,8 @@ async function handleLinkedInMutualConnectionsAuto(tabId, profileData) {
               );
             }
           }
-        } catch (error) {
-          console.error('LinkedIn auto-parsing error:', error);
+        } catch (err) {
+          linkedinLogger('LinkedIn auto-parsing error:', err);
           showNotification(
             '❌ LinkedIn Auto Parser',
             `Auto-parse error: ${error.message}`,
@@ -898,11 +915,11 @@ async function handleLinkedInMutualConnectionsAuto(tabId, profileData) {
         }
       }
     );
-  } catch (error) {
-    console.error('LinkedIn auto-parsing error:', error);
+  } catch (err) {
+    linkedinLogger('LinkedIn auto-parsing error:', err);
     showNotification(
       '❌ LinkedIn Auto Parser',
-      `Auto-parse error: ${error.message}`,
+      `Auto-parse error: ${err.message}`,
       false
     );
   }
@@ -975,10 +992,10 @@ async function sendLinkedInDataToWebhooks(linkedinData) {
           webhook.name,
           webhook.rateLimit || 0
         );
-      } catch (error) {
-        console.error(
+      } catch (err) {
+        queueLogger(
           `Failed to queue LinkedIn data for webhook ${webhook.name}:`,
-          error
+          err
         );
       }
     }
@@ -988,11 +1005,11 @@ async function sendLinkedInDataToWebhooks(linkedinData) {
       `LinkedIn data queued for ${targetWebhooks.length} webhook(s)`,
       true
     );
-  } catch (error) {
-    console.error('Error sending LinkedIn data to webhooks:', error);
+  } catch (err) {
+    linkedinLogger('Error sending LinkedIn data to webhooks:', err);
     showNotification(
       '❌ LinkedIn Parser',
-      `Error sending to webhooks: ${error.message}`,
+      `Error sending to webhooks: ${err.message}`,
       false
     );
   }
@@ -1017,14 +1034,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === 'linkedinParsingProgress') {
     // Update parsing progress
-    console.log('LinkedIn parsing progress:', request.data);
+    linkedinLogger('LinkedIn parsing progress:', request.data);
     sendResponse({ status: 'received' });
     return true;
   }
 
   if (request.action === 'linkedinParsingError') {
     // Handle parsing errors
-    console.error('LinkedIn parsing error:', request.data);
+    linkedinLogger('LinkedIn parsing error:', request.data);
     showNotification(
       '❌ LinkedIn Parser',
       `Error: ${request.data.message}`,

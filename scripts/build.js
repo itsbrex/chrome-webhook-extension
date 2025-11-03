@@ -10,6 +10,7 @@ const DIST_DIR = 'dist';
 const INCLUDE_PATHS = [
   'src/images/',
   'src/contentScripts/',
+  'src/shared/',
   'src/popup.js',
   'src/popup.html',
   'src/manifest.json',

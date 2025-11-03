@@ -36,6 +36,52 @@ This is a Chrome extension (Manifest V3) that allows users to manage webhooks an
   - Skills and endorsements
   - Mutual connections parsing (with bi-directional support)
 - Two-click deletion confirmation for webhook management
+- **Styled Debug Logging**: Visual console logging with toggle control
+
+### Debug Logging System
+
+The extension includes a comprehensive styled logging system for easier debugging and development:
+
+**Features**:
+- 🎨 Styled console output with color-coded badges
+- 🔧 Global toggle via Settings UI (disabled by default)
+- 📊 Badge-based log levels: INFO, SUCCESS, ERROR, WARNING, DEBUG
+- 🏷️ Feature-specific loggers: WEBHOOK, LINKEDIN, QUEUE, UI, API
+- 💾 Settings persist across extension reloads
+- 🧪 Safe for production (no output when disabled)
+
+**Enabling Debug Logging**:
+1. Open extension popup
+2. Navigate to Settings tab
+3. Check "Enable styled console logging" in Developer Settings
+4. Open Chrome DevTools Console to see styled output
+
+**Architecture**:
+- **src/shared/logger.js**: Centralized logging module
+- Uses native Chrome DevTools console styling (`%c`)
+- Checks `chrome.storage.local` for `debugLoggingEnabled` setting
+- Automatically syncs state across background, popup, and content scripts
+
+**Usage in Code**:
+```javascript
+import { info, error, webhookLogger } from './shared/logger.js';
+
+info('Application started');
+webhookLogger('Webhook sent successfully');
+error('Failed to send webhook:', err);
+```
+
+**Log Types**:
+- `info()` - Blue badge "INFO" - General information
+- `success()` - Green badge "SUCCESS" - Successful operations
+- `error()` - Red badge "ERROR" - Errors and failures
+- `warning()` - Orange badge "WARNING" - Warnings
+- `debug()` - Purple badge "DEBUG" - Debug information
+- `webhookLogger()` - Teal badge "WEBHOOK" - Webhook operations
+- `linkedinLogger()` - Indigo badge "LINKEDIN" - LinkedIn parsing
+- `queueLogger()` - Brown badge "QUEUE" - Queue management
+- `uiLogger()` - Purple badge "UI" - UI interactions
+- `apiLogger()` - Green badge "API" - API calls
 
 ## Development
 
@@ -212,6 +258,25 @@ Webhooks and settings are stored in Chrome local storage:
 
 ## Recent Updates (Updated: 2025-11-02)
 
+### Styled Debug Logging System (commit: TBD)
+- **NEW**: Added comprehensive styled debug logging system (`src/shared/logger.js`)
+  - Badge-based log levels with color coding (INFO, SUCCESS, ERROR, WARNING, DEBUG)
+  - Feature-specific loggers (WEBHOOK, LINKEDIN, QUEUE, UI, API)
+  - Native Chrome DevTools console styling with `%c` formatting
+  - Global toggle via Settings UI (Developer Settings section)
+  - Disabled by default (opt-in)
+- **NEW**: Developer Settings section in popup UI
+  - Checkbox to enable/disable styled console logging
+  - Persistent setting via `chrome.storage.local`
+  - Real-time sync across background, popup, and content scripts
+- **UPDATED**: All console statements replaced with styled loggers:
+  - `src/background.js`: 24 console statements → styled loggers
+  - `src/popup.js`: 12 console statements → styled loggers
+  - `src/contentScripts/pageHelper.js`: 26 console statements → styled loggers
+- **UPDATED**: Build script includes `src/shared/` directory
+- **DEPENDENCY**: Added `itty-chroma@^1.0.6` (though using native styling for now)
+- **PURPOSE**: Easier debugging with visual distinction between log types and features
+
 ### Repository Structure Reorganization (commit: 34b09b3)
 - **RESTRUCTURED**: Moved all extension source code to `src/` directory
   - Extension files: `src/background.js`, `src/popup.js`, `src/popup.html`, `src/manifest.json`
@@ -310,6 +375,8 @@ chrome-webhook-extension/
 │   │   ├── icon128.png
 │   │   ├── icon16.png
 │   │   └── icon48.png
+│   ├── shared/                 # Shared modules
+│   │   └── logger.js           # Styled debug logging system
 │   └── contentScripts/
 │       └── pageHelper.js       # LinkedIn profile parsing
 ├── scripts/                    # Build and utility scripts

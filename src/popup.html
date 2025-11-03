@@ -532,6 +532,25 @@
 
     <!-- Settings Tab -->
     <div id="settings-tab" class="tab-content">
+      <!-- Developer Settings -->
+      <div class="form-section">
+        <div class="form-header">
+          <h3><i class="fa fa-bug"></i> Developer Settings</h3>
+        </div>
+        <div class="form-content">
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="enableDebugLogging" style="margin-right: 8px;">
+              Enable styled console logging
+            </label>
+            <small style="color: var(--text-secondary); font-size: 12px; display: block; margin-top: 4px;">
+              Show detailed debug information with visual styling in browser console
+            </small>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Notification Settings -->
       <div class="form-section">
         <div class="form-header">
           <h3><i class="fa fa-bell"></i> Notification Settings</h3>
@@ -630,6 +649,7 @@
     </div>
   </div>
 
+  <script src="shared/logger.js"></script>
   <script src="popup.js"></script>
 </body>
 
